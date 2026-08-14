@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#fafafa">
+    <meta name="description" data-i18n-content="meta.description" content="Compare seus arquivos do Instagram e descubra quem não segue você de volta, com processamento local e privado.">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: blob:; script-src 'self' file:; style-src 'self' file:; img-src 'self' file: data:; font-src 'self' file:; connect-src 'none'; worker-src 'self' file: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>InstaCheck — Quem não segue você de volta</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="i18n.js" defer></script>
+    <script src="vendor/fflate.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="ambient ambient-one" aria-hidden="true"></div>
+    <div class="ambient ambient-two" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="InstaCheck — início" data-i18n-aria-label="brand.home">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span>InstaCheck</span>
+      </a>
+      <div class="header-actions">
+        <div class="language-picker">
+          <span class="sr-only" id="languagePickerLabel" data-i18n="language.label">Idioma</span>
+          <button class="language-trigger" id="languageButton" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="languagePickerLabel languageCurrent">
+            <span id="languageCurrent">Português</span>
+            <span class="language-chevron" aria-hidden="true"></span>
+          </button>
+          <div class="language-menu" id="languageMenu" role="listbox" aria-labelledby="languagePickerLabel" hidden>
+            <button type="button" role="option" data-language="pt-BR">Português</button>
+            <button type="button" role="option" data-language="es">Español</button>
+            <button type="button" role="option" data-language="en">English</button>
+          </div>
+          <select class="native-language-select" id="languageSelect" tabindex="-1" aria-hidden="true">
+            <option value="pt-BR">Português</option>
+            <option value="es">Español</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div class="privacy-pill">
+          <span class="privacy-dot" aria-hidden="true"></span>
+          <span data-i18n="privacy.local">100% local e privado</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="start-view" id="startView" aria-labelledby="heroTitle">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="hero.eyebrow">Seu histórico, sob seu controle</p>
+          <h1 id="heroTitle" data-i18n="hero.title">Descubra mudanças nas suas conexões.</h1>
+          <p class="hero-description" data-i18n="hero.description">Selecione o ZIP do Instagram sem descompactar. O InstaCheck guarda snapshots neste aparelho e mostra quem deixou de seguir você no futuro.</p>
+        </div>
+
+        <div class="upload-card">
+          <div class="account-setup">
+            <span class="setup-number" aria-hidden="true">1</span>
+            <div class="account-setup-content">
+              <label for="accountInput" data-i18n="account.label">Qual é o seu @username?</label>
+              <div class="account-field">
+                <span aria-hidden="true">@</span>
+                <input id="accountInput" type="text" inputmode="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu_username" data-i18n-placeholder="account.placeholder" maxlength="30">
+              </div>
+              <p data-i18n="account.help">Usamos o username somente para separar o histórico de cada conta neste dispositivo.</p>
+              <div class="saved-accounts" id="savedAccounts" aria-label="Contas salvas" data-i18n-aria-label="account.saved" hidden></div>
+              <button class="home-history-button" id="openHistoryButton" type="button" hidden>
+                <span class="home-history-icon" aria-hidden="true">↺</span>
+                <span class="home-history-copy"><strong data-i18n="actions.openHistory">Acessar meu histórico</strong><small data-i18n="history.openLatestHelp">Abrir os resultados do último snapshot desta conta</small></span>
+                <span class="home-history-arrow" aria-hidden="true">→</span>
+              </button>
+              <div class="local-tools" id="startHistoryTools" hidden>
+                <button type="button" class="text-button" data-action="backup" data-i18n="actions.backup">Baixar backup</button>
+                <button type="button" class="text-button" data-action="restore" data-i18n="actions.restore">Restaurar backup</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file" accept=".zip,.json,application/zip,application/x-zip-compressed,application/json" multiple>
+            <span class="drop-step" data-i18n="upload.step">Passo 2</span>
+            <div class="upload-icon" aria-hidden="true">
+              <span class="upload-arrow">↑</span>
+            </div>
+            <h2 id="uploadTitle" data-i18n="upload.title">Selecione o ZIP do Instagram</h2>
+            <p data-i18n="upload.subtitle">Não precisa descompactar nem procurar arquivos no dispositivo</p>
+            <button class="primary-button" id="selectButton" type="button" data-i18n="upload.button">Escolher ZIP do Instagram</button>
+            <button class="tutorial-inline-button" id="inlineTutorialButton" type="button">
+              <span aria-hidden="true">?</span>
+              <span data-i18n="guide.quickAction">Não sabe como obter o arquivo? Veja o tutorial</span>
+            </button>
+            <p class="file-hint" id="fileHint" data-i18n-html="upload.manual">Também aceitamos os JSONs manualmente: <strong>following.json</strong> e <strong>followers_*.json</strong>.</p>
+          </div>
+
+          <div class="local-note">
+            <span class="shield-icon" aria-hidden="true">✓</span>
+            <div>
+              <strong data-i18n="privacy.zipTitle">O ZIP é lido somente neste dispositivo</strong>
+              <span data-i18n="privacy.zipText">Salvamos apenas snapshots das listas. Depois, você pode apagar o ZIP do dispositivo.</span>
+            </div>
+          </div>
+
+          <div class="message" id="uploadMessage" role="alert" hidden></div>
+        </div>
+
+        <section class="device-guide" id="tutorialGuide" aria-labelledby="guideTitle" tabindex="-1">
+          <div class="guide-heading">
+            <div>
+              <p class="eyebrow" data-i18n="guide.eyebrow">Tutorial passo a passo</p>
+              <h2 id="guideTitle" data-i18n="guide.title">Como baixar o ZIP certo</h2>
+              <p data-i18n="guide.description">Siga esta configuração para ter uma comparação confiável e um arquivo pequeno.</p>
+            </div>
+            <a href="https://www.facebook.com/help/181231772500920" target="_blank" rel="noopener noreferrer" data-i18n="guide.metaHelp">Ajuda oficial da Meta ↗</a>
+          </div>
+
+          <div class="guide-steps">
+            <article>
+              <span>1</span>
+              <div><h3 data-i18n="guide.step1Title">Abra a Central de Contas</h3><p data-i18n-html="guide.step1Text">Instagram → Perfil → menu ☰ → <strong>Central de Contas</strong>.</p></div>
+            </article>
+            <article>
+              <span>2</span>
+              <div><h3 data-i18n="guide.step2Title">Crie uma exportação</h3><p data-i18n-html="guide.step2Text"><strong>Suas informações e permissões</strong> → <strong>Exportar suas informações</strong> → <strong>Criar exportação</strong>.</p></div>
+            </article>
+            <article>
+              <span>3</span>
+              <div><h3 data-i18n="guide.step3Title">Escolha o perfil</h3><p data-i18n-html="guide.step3Text">Selecione sua conta do Instagram e toque em <strong>Exportar para dispositivo</strong>.</p></div>
+            </article>
+            <article class="guide-highlight">
+              <span>4</span>
+              <div><h3 data-i18n="guide.step4Title">Use estas opções exatas</h3><p data-i18n-html="guide.step4Text"><strong>Informações específicas:</strong> Seguidores e seguindo<br><strong>Período:</strong> Todo o período<br><strong>Formato:</strong> JSON<br><strong>E-mail de notificação:</strong> confirme em qual endereço você quer receber o aviso de que o ZIP está pronto.</p></div>
+            </article>
+            <article>
+              <span>5</span>
+              <div><h3 data-i18n="guide.step5Title">Baixe e selecione o ZIP</h3><p data-i18n="guide.step5Text">Quando o Instagram avisar que está pronto, baixe o arquivo e volte ao InstaCheck. Não descompacte.</p></div>
+            </article>
+          </div>
+
+          <div class="exact-files">
+            <div>
+              <span class="shield-icon" aria-hidden="true">✓</span>
+              <div><strong data-i18n="guide.requiredFiles">Arquivos obrigatórios dentro do ZIP</strong><code>followers_1.json</code><code>followers_2.json…</code><code>following.json</code></div>
+            </div>
+            <div>
+              <span class="optional-icon" aria-hidden="true">+</span>
+              <div><strong data-i18n="guide.optionalFiles">Insights extras, quando disponíveis</strong><code>pending_follow_requests.json</code><code>recent_follow_requests.json</code><code>recently_unfollowed_profiles.json</code></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="results-view" id="resultsView" aria-labelledby="resultsTitle" hidden>
+        <div class="results-heading">
+          <div>
+            <p class="eyebrow success-eyebrow"><span aria-hidden="true">✓</span> <span data-i18n="results.complete">Análise concluída</span></p>
+            <h1 id="resultsTitle" data-i18n="results.title">Sua lista está pronta.</h1>
+            <p id="analysisSummary" data-i18n="results.initialSummary">Confira os perfis e avance no seu ritmo.</p>
+            <div class="current-account-row">
+              <div class="current-account" id="currentAccountBadge" data-i18n="results.accountPlaceholder">@conta · histórico local</div>
+              <button class="edit-account-button" id="editAccountButton" type="button" data-i18n="account.edit">Editar username</button>
+            </div>
+          </div>
+          <button class="secondary-button" id="newAnalysisButton" type="button">
+            <span aria-hidden="true">↻</span> <span data-i18n="actions.newImport">Importar novo ZIP</span>
+          </button>
+        </div>
+
+        <div class="file-summary" id="fileSummary" aria-label="Arquivos processados" data-i18n-aria-label="results.processedFiles"></div>
+
+        <section class="history-insight" id="historyInsight" aria-labelledby="historyInsightTitle">
+          <span class="history-insight-icon" aria-hidden="true">↗</span>
+          <div class="history-insight-copy">
+            <p data-i18n="history.comparison">Comparação histórica</p>
+            <h2 id="historyInsightTitle" data-i18n="history.firstTitle">Primeiro snapshot salvo</h2>
+            <span id="historyInsightDescription" data-i18n="history.firstDescription">Na próxima importação, mostraremos claramente quem deixou de seguir você.</span>
+          </div>
+          <div class="history-deltas" id="historyDeltas" hidden>
+            <div><strong id="lostFollowersCount">0</strong><span data-i18n="history.lost">deixaram de seguir</span></div>
+            <div><strong id="newFollowersCount">0</strong><span data-i18n="history.new">novos seguidores</span></div>
+          </div>
+          <button class="secondary-button" id="viewLostButton" type="button" hidden data-i18n="history.viewLost">Ver quem deixou de seguir</button>
+        </section>
+
+        <div class="metrics" aria-label="Resumo da análise" data-i18n-aria-label="results.summary">
+          <article class="metric-card">
+            <span class="metric-icon followers-icon" aria-hidden="true">●</span>
+            <div>
+              <span class="metric-label" data-i18n="metrics.followers">Seguidores</span>
+              <strong id="followersCount">0</strong>
+            </div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon following-icon" aria-hidden="true">→</span>
+            <div>
+              <span class="metric-label" data-i18n="metrics.following">Seguindo</span>
+              <strong id="followingCount">0</strong>
+            </div>
+          </article>
+          <article class="metric-card">
+            <span class="metric-icon mutual-icon" aria-hidden="true">↔</span>
+            <div>
+              <span class="metric-label" data-i18n="metrics.mutuals">Seguimento mútuo</span>
+              <strong id="mutualCount">0</strong>
+            </div>
+          </article>
+          <article class="metric-card accent-card">
+            <span class="metric-icon mismatch-icon" aria-hidden="true">−</span>
+            <div>
+              <span class="metric-label" data-i18n="metrics.nonFollowers">Não seguem de volta</span>
+              <strong id="notFollowingCount">0</strong>
+            </div>
+          </article>
+        </div>
+
+        <div class="progress-card" id="progressCard">
+          <div class="progress-copy">
+            <div>
+              <span class="progress-label" id="progressLabel" data-i18n="progress.label">Seu progresso</span>
+              <strong id="progressText" data-i18n="progress.initial">0 de 0 perfis revisados</strong>
+            </div>
+            <span class="progress-percentage" id="progressPercentage">0%</span>
+          </div>
+          <div class="progress-track" role="progressbar" aria-label="Perfis marcados como removidos" data-i18n-aria-label="progress.aria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" id="progressBar">
+            <span id="progressFill"></span>
+          </div>
+        </div>
+
+        <div class="list-card">
+          <div class="dataset-switcher">
+            <div class="dataset-copy">
+              <span data-i18n="list.explore">Explorar conexões</span>
+              <p id="datasetDescription" data-i18n="datasets.nonFollowers.description">Contas que você segue e que não seguem você de volta.</p>
+            </div>
+            <div class="dataset-tabs" id="datasetTabs" role="tablist" aria-label="Tipo de conexão" data-i18n-aria-label="list.connectionType"></div>
+          </div>
+
+          <div class="toolbar">
+            <label class="search-field" for="searchInput">
+              <span aria-hidden="true"></span>
+              <input id="searchInput" type="search" placeholder="Buscar por username" data-i18n-placeholder="list.search" autocomplete="off" spellcheck="false">
+              <kbd aria-hidden="true">/</kbd>
+            </label>
+            <label class="sort-field" for="sortSelect">
+              <span data-i18n="sort.label">Ordenar</span>
+              <select id="sortSelect" aria-label="Ordenar conexões" data-i18n-aria-label="sort.aria">
+                <option value="alphabetical" data-i18n="sort.alphabetical">Alfabética: A–Z</option>
+                <option value="reverseAlphabetical" data-i18n="sort.reverseAlphabetical">Alfabética: Z–A</option>
+                <option value="newest" data-i18n="sort.newest">Mais recentes</option>
+                <option value="oldest" data-i18n="sort.oldest">Mais antigas</option>
+              </select>
+            </label>
+            <div class="filters" id="statusFilters" role="group" aria-label="Filtrar perfis" data-i18n-aria-label="list.filterProfiles">
+              <button type="button" class="filter-button active" data-filter="all" aria-pressed="true"><span data-i18n="filters.all">Todos</span> <span class="filter-count" id="allFilterCount">0</span></button>
+              <button type="button" class="filter-button" data-filter="pending" aria-pressed="false"><span class="filter-label" id="pendingFilterLabel" data-i18n="filters.pending">Pendentes</span> <span class="filter-count" id="pendingFilterCount">0</span></button>
+              <button type="button" class="filter-button" data-filter="removed" aria-pressed="false"><span class="filter-label" id="reviewedFilterLabel" data-i18n="filters.reviewed">Já removidos</span> <span class="filter-count" id="removedFilterCount">0</span></button>
+            </div>
+          </div>
+
+          <div class="list-heading">
+            <div>
+              <h2 id="listTitle" data-i18n="datasets.nonFollowers.title">Não seguem você de volta</h2>
+              <p id="visibleCount" aria-live="polite" data-i18n="list.zeroProfiles">0 perfis</p>
+            </div>
+            <div class="list-actions">
+              <button class="utility-button" id="copyButton" type="button" data-i18n="actions.copy">Copiar visíveis</button>
+              <button class="utility-button" id="exportButton" type="button" data-i18n="actions.export">Exportar CSV</button>
+              <button class="reset-button" id="resetButton" type="button" data-i18n="actions.clearProgress">Limpar progresso</button>
+            </div>
+          </div>
+
+          <div class="profile-list" id="profileList"></div>
+
+          <div class="empty-state" id="emptyState" hidden>
+            <span aria-hidden="true">✓</span>
+            <h3 id="emptyTitle" data-i18n="empty.allGood">Tudo certo por aqui</h3>
+            <p id="emptyDescription" data-i18n="empty.noMatch">Nenhum perfil corresponde a este filtro.</p>
+          </div>
+        </div>
+
+        <section class="history-card" aria-labelledby="historyTitle">
+          <div class="history-card-heading">
+            <div>
+              <p class="eyebrow" data-i18n="history.savedHere">Salvo neste aparelho</p>
+              <h2 id="historyTitle" data-i18n="history.title">Histórico de snapshots</h2>
+              <p id="historySubtitle" data-i18n="history.subtitle">Cada nova importação é comparada com a anterior.</p>
+            </div>
+            <div class="history-actions">
+              <button type="button" class="utility-button" data-action="backup" data-i18n="actions.backup">Baixar backup</button>
+              <button type="button" class="utility-button" data-action="restore" data-i18n="actions.restore">Restaurar backup</button>
+            </div>
+          </div>
+          <div class="history-list" id="historyList"></div>
+          <p class="history-device-note" data-i18n="history.deviceNote">Este histórico não acompanha você para outro dispositivo automaticamente. Use o backup antes de trocar de dispositivo ou limpar o navegador.</p>
+          <div class="message" id="historyMessage" role="status" hidden></div>
+        </section>
+
+        <p class="manual-note" data-i18n="privacy.manual">O InstaCheck não automatiza ações no Instagram. Você decide quais perfis abrir e resolve cada ação manualmente.</p>
+      </section>
+    </main>
+
+    <button class="tutorial-fab" id="tutorialFab" type="button" aria-controls="tutorialGuide">
+      <span class="tutorial-fab-icon" aria-hidden="true">?</span>
+      <span data-i18n="guide.floatingAction">Como obter o ZIP?</span>
+    </button>
+
+    <footer>
+      <span>InstaCheck</span>
+      <span data-i18n="footer.privacy">Privacidade por padrão. Seus dados são seus.</span>
+    </footer>
+
+    <input id="backupFileInput" type="file" accept=".json,application/json" hidden>
+
+    <dialog class="account-dialog" id="editAccountDialog" aria-labelledby="editAccountTitle">
+      <form id="editAccountForm">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow" data-i18n="account.editEyebrow">Conta do histórico</p>
+            <h2 id="editAccountTitle" data-i18n="account.editTitle">Editar username</h2>
+          </div>
+          <button class="dialog-close" id="closeEditAccountButton" type="button" aria-label="Fechar" data-i18n-aria-label="actions.close">×</button>
+        </div>
+        <p data-i18n="account.editHelp">Corrija o username sem perder snapshots, progresso ou comparações desta conta.</p>
+        <label for="editAccountInput" data-i18n="account.newUsername">Novo @username</label>
+        <div class="account-field">
+          <span aria-hidden="true">@</span>
+          <input id="editAccountInput" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30">
+        </div>
+        <p class="dialog-note" data-i18n="account.mergeNote">Se já existir um histórico com esse username, os snapshots serão unidos sem duplicar.</p>
+        <div class="message" id="editAccountMessage" role="alert" hidden></div>
+        <div class="dialog-actions">
+          <button class="utility-button" id="cancelEditAccountButton" type="button" data-i18n="actions.cancel">Cancelar</button>
+          <button class="primary-button" id="saveEditAccountButton" type="submit" data-i18n="actions.save">Salvar username</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
