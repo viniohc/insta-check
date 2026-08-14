@@ -1,5 +1,7 @@
 # InstaCheck
 
+🌐 **Acesse o site:** https://theinstacheck.vercel.app/
+
 O InstaCheck é um site estático e responsivo para celular, tablet e computador. Ele analisa o ZIP exportado pelo Instagram e mantém um histórico local das suas conexões.
 
 A interface está disponível em português, espanhol e inglês. Na primeira visita, o idioma é escolhido automaticamente pelas preferências do navegador; depois, a pessoa pode trocá-lo no seletor do cabeçalho. A escolha fica salva somente no aparelho.
@@ -58,7 +60,3 @@ Você pode abrir o `index.html` diretamente no navegador. Se preferir, sirva a p
 O leitor de ZIP usa o [fflate](https://www.npmjs.com/package/fflate), distribuído sob licença MIT e incluído localmente para que a página não dependa de um CDN.
 
 As fontes Inter e Poppins também estão incluídas localmente, com suas respectivas licenças SIL Open Font License na pasta `fonts/`. Assim, tipografia e funcionamento permanecem disponíveis sem chamadas externas.
-
-## Publicar
-
-Publique toda a pasta em qualquer hospedagem de sites estáticos. Não é necessário configurar backend, banco de dados ou variáveis de ambiente.
