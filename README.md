@@ -1,6 +1,9 @@
 # InstaCheck
 
 **InstaCheck — Análise de conexões do Instagram** é um site estático e responsivo para celular, tablet e computador. Ele analisa seguidores, seguindo, conexões mútuas e mudanças ao longo do tempo usando o ZIP original exportado pelo Instagram.
+🌐 **Acesse o site:** https://theinstacheck.vercel.app/
+
+O InstaCheck é um site estático e responsivo para celular, tablet e computador. Ele analisa o ZIP exportado pelo Instagram e mantém um histórico local das suas conexões.
 
 Não há login, senha ou envio das listas para um servidor: a leitura do ZIP, as comparações e o histórico acontecem localmente no navegador. A interface está disponível em português, espanhol e inglês, detecta o idioma do navegador na primeira visita e mantém um seletor manual no cabeçalho.
 
@@ -59,8 +62,12 @@ Abra o `index.html` diretamente ou sirva a pasta com qualquer servidor HTTP est�
 
 O leitor de ZIP usa o [fflate](https://www.npmjs.com/package/fflate), incluído localmente sob licença MIT. Inter e Poppins também são servidas localmente com suas licenças SIL Open Font License.
 
+<<<<<<< HEAD
 ## Publicação
 
 O projeto está pronto para hospedagem estática, inclusive na Vercel. As imagens sociais usam um caminho relativo, portanto o domínio pode mudar sem exigir alterações no conteúdo compartilhável.
 
 Feito por [@viniohc](https://www.instagram.com/viniohc/).
+=======
+As fontes Inter e Poppins também estão incluídas localmente, com suas respectivas licenças SIL Open Font License na pasta `fonts/`. Assim, tipografia e funcionamento permanecem disponíveis sem chamadas externas.
+>>>>>>> 79f63cc075aab1ed3e6ec6164ceb7bd3fb22598d
