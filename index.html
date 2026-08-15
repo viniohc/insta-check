@@ -4,10 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#fafafa">
-    <meta name="description" data-i18n-content="meta.description" content="Compare seus arquivos do Instagram e descubra quem não segue você de volta, com processamento local e privado.">
+    <meta name="description" data-i18n-content="meta.description" content="Analise seguidores, seguindo e conexões no Instagram e acompanhe mudanças ao longo do tempo. Sem login e com processamento local.">
+    <meta property="og:title" content="InstaCheck — Entenda suas conexões no Instagram">
+    <meta property="og:description" content="Analise seguidores, seguindo, conexões mútuas e acompanhe mudanças ao longo do tempo. Sem login e com processamento local.">
+    <meta property="og:image" content="/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="InstaCheck — Entenda suas conexões no Instagram">
+    <meta name="twitter:description" content="Analise e acompanhe suas conexões no Instagram de forma local e privada.">
+    <meta name="twitter:image" content="/og-image.png">
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: blob:; script-src 'self' file:; style-src 'self' file:; img-src 'self' file: data:; font-src 'self' file:; connect-src 'none'; worker-src 'self' file: blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
-    <title>InstaCheck — Quem não segue você de volta</title>
+    <title>InstaCheck — Análise de conexões do Instagram</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
     <script src="i18n.js" defer></script>
     <script src="vendor/fflate.js" defer></script>
@@ -18,7 +29,7 @@
     <div class="ambient ambient-two" aria-hidden="true"></div>
 
     <header class="site-header">
-      <a class="brand" href="./" aria-label="InstaCheck — início" data-i18n-aria-label="brand.home">
+      <a class="brand" href="#/" aria-label="InstaCheck — início" data-i18n-aria-label="brand.home">
         <span class="brand-mark" aria-hidden="true"><span></span></span>
         <span>InstaCheck</span>
       </a>
@@ -50,9 +61,9 @@
     <main>
       <section class="start-view" id="startView" aria-labelledby="heroTitle">
         <div class="hero-copy">
-          <p class="eyebrow" data-i18n="hero.eyebrow">Seu histórico, sob seu controle</p>
-          <h1 id="heroTitle" data-i18n="hero.title">Descubra mudanças nas suas conexões.</h1>
-          <p class="hero-description" data-i18n="hero.description">Selecione o ZIP do Instagram sem descompactar. O InstaCheck guarda snapshots neste aparelho e mostra quem deixou de seguir você no futuro.</p>
+          <p class="eyebrow" data-i18n="hero.eyebrow">Análise completa, local e privada</p>
+          <h1 id="heroTitle" data-i18n="hero.title">Entenda suas conexões no Instagram.</h1>
+          <p class="hero-description" data-i18n="hero.description">Analise seguidores, seguindo, conexões mútuas e acompanhe mudanças ao longo do tempo — sem login e com processamento local.</p>
         </div>
 
         <div class="upload-card">
@@ -66,11 +77,6 @@
               </div>
               <p data-i18n="account.help">Usamos o username somente para separar o histórico de cada conta neste dispositivo.</p>
               <div class="saved-accounts" id="savedAccounts" aria-label="Contas salvas" data-i18n-aria-label="account.saved" hidden></div>
-              <button class="home-history-button" id="openHistoryButton" type="button" hidden>
-                <span class="home-history-icon" aria-hidden="true">↺</span>
-                <span class="home-history-copy"><strong data-i18n="actions.openHistory">Acessar meu histórico</strong><small data-i18n="history.openLatestHelp">Abrir os resultados do último snapshot desta conta</small></span>
-                <span class="home-history-arrow" aria-hidden="true">→</span>
-              </button>
               <div class="local-tools" id="startHistoryTools" hidden>
                 <button type="button" class="text-button" data-action="backup" data-i18n="actions.backup">Baixar backup</button>
                 <button type="button" class="text-button" data-action="restore" data-i18n="actions.restore">Restaurar backup</button>
@@ -86,7 +92,7 @@
             </div>
             <h2 id="uploadTitle" data-i18n="upload.title">Selecione o ZIP do Instagram</h2>
             <p data-i18n="upload.subtitle">Não precisa descompactar nem procurar arquivos no dispositivo</p>
-            <button class="primary-button" id="selectButton" type="button" data-i18n="upload.button">Escolher ZIP do Instagram</button>
+            <button class="primary-button" id="selectButton" type="button" data-i18n="upload.button">Analisar minhas conexões</button>
             <button class="tutorial-inline-button" id="inlineTutorialButton" type="button">
               <span aria-hidden="true">?</span>
               <span data-i18n="guide.quickAction">Não sabe como obter o arquivo? Veja o tutorial</span>
@@ -98,12 +104,40 @@
             <span class="shield-icon" aria-hidden="true">✓</span>
             <div>
               <strong data-i18n="privacy.zipTitle">O ZIP é lido somente neste dispositivo</strong>
-              <span data-i18n="privacy.zipText">Salvamos apenas snapshots das listas. Depois, você pode apagar o ZIP do dispositivo.</span>
+              <span data-i18n="privacy.zipText">Salvamos apenas as análises das listas. Depois, você pode apagar o ZIP do dispositivo.</span>
             </div>
           </div>
 
           <div class="message" id="uploadMessage" role="alert" hidden></div>
         </div>
+
+        <div class="home-entry-actions">
+          <button class="demo-button" id="demoButton" type="button">
+            <span class="demo-button-icon" aria-hidden="true">▶</span>
+            <span><strong data-i18n="actions.demo">Ver demonstração</strong><small data-i18n="demo.homeHelp">Explore todas as listas com dados fictícios</small></span>
+          </button>
+          <button class="home-history-button" id="openHistoryButton" type="button" hidden>
+            <span class="home-history-icon" aria-hidden="true">↺</span>
+            <span class="home-history-copy"><strong data-i18n="actions.openHistory">Acessar meu histórico</strong><small data-i18n="history.openLatestHelp">Escolha uma conta e uma análise salva</small></span>
+            <span class="home-history-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <section class="features-section" aria-labelledby="featuresTitle">
+          <div class="section-heading-centered">
+            <p class="eyebrow" data-i18n="features.eyebrow">Uma visão completa</p>
+            <h2 id="featuresTitle" data-i18n="features.title">O que o InstaCheck analisa</h2>
+          </div>
+          <div class="feature-grid">
+            <article><span>01</span><h3 data-i18n="features.followersTitle">Seguidores</h3><p data-i18n="features.followersText">Veja sua lista e acompanhe mudanças.</p></article>
+            <article><span>02</span><h3 data-i18n="features.followingTitle">Seguindo</h3><p data-i18n="features.followingText">Entenda as contas com as quais você mantém conexão.</p></article>
+            <article><span>03</span><h3 data-i18n="features.mutualsTitle">Conexões mútuas</h3><p data-i18n="features.mutualsText">Veja quem você segue e também segue você.</p></article>
+            <article><span>04</span><h3 data-i18n="features.nonFollowersTitle">Não seguem de volta</h3><p data-i18n="features.nonFollowersText">Veja contas que você segue, mas que não seguem você.</p></article>
+            <article><span>05</span><h3 data-i18n="features.newTitle">Novos seguidores</h3><p data-i18n="features.newText">Compare análises e veja quem começou a seguir.</p></article>
+            <article><span>06</span><h3 data-i18n="features.lostTitle">Deixaram de seguir</h3><p data-i18n="features.lostText">Identifique mudanças desde sua análise anterior.</p></article>
+            <article class="feature-history"><span>07</span><h3 data-i18n="features.historyTitle">Histórico</h3><p data-i18n="features.historyText">Acompanhe como suas conexões mudaram ao longo do tempo.</p></article>
+          </div>
+        </section>
 
         <section class="device-guide" id="tutorialGuide" aria-labelledby="guideTitle" tabindex="-1">
           <div class="guide-heading">
@@ -134,7 +168,15 @@
             </article>
             <article>
               <span>5</span>
-              <div><h3 data-i18n="guide.step5Title">Baixe e selecione o ZIP</h3><p data-i18n="guide.step5Text">Quando o Instagram avisar que está pronto, baixe o arquivo e volte ao InstaCheck. Não descompacte.</p></div>
+              <div><h3 data-i18n="guide.step5Title">Solicite e aguarde</h3><p data-i18n="guide.step5Text">Confirme a exportação. O Instagram pode levar alguns minutos para preparar o arquivo; você não precisa ficar esperando nessa tela.</p></div>
+            </article>
+            <article>
+              <span>6</span>
+              <div><h3 data-i18n="guide.step6Title">Baixe quando receber o aviso</h3><p data-i18n-html="guide.step6Text">O Instagram enviará uma notificação e/ou e-mail. Volte à exportação e toque em <strong>Baixar</strong>.</p></div>
+            </article>
+            <article>
+              <span>7</span>
+              <div><h3 data-i18n="guide.step7Title">Encontre o ZIP e volte</h3><p data-i18n-html="guide.step7Text">No celular, procure em <strong>Downloads</strong>. Em Android/Samsung: <strong>Meus Arquivos → Downloads</strong>. Não descompacte; volte ao InstaCheck e selecione o ZIP.</p></div>
             </article>
           </div>
 
@@ -148,23 +190,54 @@
               <div><strong data-i18n="guide.optionalFiles">Insights extras, quando disponíveis</strong><code>pending_follow_requests.json</code><code>recent_follow_requests.json</code><code>recently_unfollowed_profiles.json</code></div>
             </div>
           </div>
+
+          <section class="faq-section" aria-labelledby="faqTitle">
+            <div class="faq-heading"><p class="eyebrow" data-i18n="faq.eyebrow">Dúvidas rápidas</p><h2 id="faqTitle" data-i18n="faq.title">Perguntas frequentes</h2></div>
+            <div class="faq-list">
+              <details><summary data-i18n="faq.waitQuestion">Preciso esperar o Instagram preparar o arquivo?</summary><p data-i18n="faq.waitAnswer">Não. Você pode sair da tela e voltar quando receber a notificação ou o e-mail.</p></details>
+              <details><summary data-i18n="faq.unzipQuestion">Preciso descompactar o ZIP?</summary><p data-i18n="faq.unzipAnswer">Não. Selecione o arquivo ZIP original diretamente no InstaCheck.</p></details>
+              <details><summary data-i18n="faq.loginQuestion">O InstaCheck pede login ou senha?</summary><p data-i18n="faq.loginAnswer">Nunca. Os arquivos são processados somente neste dispositivo e não são enviados para um servidor.</p></details>
+              <details><summary data-i18n="faq.historyQuestion">Onde meu histórico fica salvo?</summary><p data-i18n="faq.historyAnswer">No navegador deste dispositivo. Baixe um backup JSON antes de limpar os dados do navegador ou trocar de aparelho.</p></details>
+            </div>
+            <div class="faq-contact">
+              <span data-i18n="faq.contact">Ainda precisa de ajuda? Fale comigo no Instagram →</span>
+              <a class="creator-link" data-creator-link href="https://www.instagram.com/viniohc/" target="_blank" rel="noopener noreferrer">@viniohc ↗</a>
+            </div>
+          </section>
         </section>
+      </section>
+
+      <section class="history-view" id="historyView" aria-labelledby="historyHubTitle" hidden>
+        <div class="history-hub-heading">
+          <button class="back-button" id="historyBackButton" type="button"><span aria-hidden="true">←</span> <span data-i18n="actions.backHome">Voltar ao início</span></button>
+          <p class="eyebrow" data-i18n="history.savedHere">Salvo neste aparelho</p>
+          <h1 id="historyHubTitle" data-i18n="history.hubTitle">Meu histórico</h1>
+          <p data-i18n="history.hubDescription">Escolha uma conta para ver e abrir suas análises salvas.</p>
+        </div>
+        <div class="history-accounts" id="historyAccounts"></div>
+        <section class="history-account-detail" id="historyAccountDetail" hidden>
+          <button class="back-button" id="historyAccountsBackButton" type="button"><span aria-hidden="true">←</span> <span data-i18n="actions.backAccounts">Voltar às contas</span></button>
+          <div class="history-account-detail-heading"><div><p class="eyebrow" data-i18n="history.savedAnalyses">Análises salvas</p><h2 id="historyAccountTitle">@conta</h2></div></div>
+          <div class="history-analysis-list" id="historyAnalysisList"></div>
+        </section>
+        <div class="message" id="historyHubMessage" role="status" hidden></div>
       </section>
 
       <section class="results-view" id="resultsView" aria-labelledby="resultsTitle" hidden>
         <div class="results-heading">
           <div>
             <p class="eyebrow success-eyebrow"><span aria-hidden="true">✓</span> <span data-i18n="results.complete">Análise concluída</span></p>
-            <h1 id="resultsTitle" data-i18n="results.title">Sua lista está pronta.</h1>
-            <p id="analysisSummary" data-i18n="results.initialSummary">Confira os perfis e avance no seu ritmo.</p>
+            <h1 id="resultsTitle" data-i18n="results.title">Sua análise</h1>
+            <p id="analysisSummary" data-i18n="results.initialSummary">Explore todas as suas conexões e mudanças.</p>
             <div class="current-account-row">
               <div class="current-account" id="currentAccountBadge" data-i18n="results.accountPlaceholder">@conta · histórico local</div>
               <button class="edit-account-button" id="editAccountButton" type="button" data-i18n="account.edit">Editar username</button>
             </div>
           </div>
-          <button class="secondary-button" id="newAnalysisButton" type="button">
-            <span aria-hidden="true">↻</span> <span data-i18n="actions.newImport">Importar novo ZIP</span>
-          </button>
+          <div class="results-heading-actions">
+            <button class="share-button" id="shareResultButton" type="button"><span aria-hidden="true">↗</span> <span data-i18n="actions.shareResult">Compartilhar resultado</span></button>
+            <button class="secondary-button" id="newAnalysisButton" type="button"><span aria-hidden="true">↻</span> <span data-i18n="actions.newImport">Importar novo ZIP</span></button>
+          </div>
         </div>
 
         <div class="file-summary" id="fileSummary" aria-label="Arquivos processados" data-i18n-aria-label="results.processedFiles"></div>
@@ -173,12 +246,14 @@
           <span class="history-insight-icon" aria-hidden="true">↗</span>
           <div class="history-insight-copy">
             <p data-i18n="history.comparison">Comparação histórica</p>
-            <h2 id="historyInsightTitle" data-i18n="history.firstTitle">Primeiro snapshot salvo</h2>
+            <h2 id="historyInsightTitle" data-i18n="history.firstTitle">Primeira análise salva</h2>
             <span id="historyInsightDescription" data-i18n="history.firstDescription">Na próxima importação, mostraremos claramente quem deixou de seguir você.</span>
           </div>
           <div class="history-deltas" id="historyDeltas" hidden>
             <div><strong id="lostFollowersCount">0</strong><span data-i18n="history.lost">deixaram de seguir</span></div>
             <div><strong id="newFollowersCount">0</strong><span data-i18n="history.new">novos seguidores</span></div>
+            <div><strong id="followersDeltaCount">0</strong><span data-i18n="history.followersBalance">saldo de seguidores</span></div>
+            <div><strong id="followingDeltaCount">0</strong><span data-i18n="history.followingChange">variação seguindo</span></div>
           </div>
           <button class="secondary-button" id="viewLostButton" type="button" hidden data-i18n="history.viewLost">Ver quem deixou de seguir</button>
         </section>
@@ -242,15 +317,25 @@
               <input id="searchInput" type="search" placeholder="Buscar por username" data-i18n-placeholder="list.search" autocomplete="off" spellcheck="false">
               <kbd aria-hidden="true">/</kbd>
             </label>
-            <label class="sort-field" for="sortSelect">
-              <span data-i18n="sort.label">Ordenar</span>
-              <select id="sortSelect" aria-label="Ordenar conexões" data-i18n-aria-label="sort.aria">
+            <div class="sort-field">
+              <span id="sortLabel" data-i18n="sort.label">Ordenar</span>
+              <button class="sort-trigger" id="sortButton" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="sortLabel sortCurrent">
+                <span id="sortCurrent" data-i18n="sort.alphabetical">Alfabética: A–Z</span>
+                <span class="sort-chevron" aria-hidden="true"></span>
+              </button>
+              <div class="sort-menu" id="sortMenu" role="listbox" aria-labelledby="sortLabel" hidden>
+                <button type="button" role="option" data-sort="alphabetical" data-i18n="sort.alphabetical">Alfabética: A–Z</button>
+                <button type="button" role="option" data-sort="reverseAlphabetical" data-i18n="sort.reverseAlphabetical">Alfabética: Z–A</button>
+                <button type="button" role="option" data-sort="newest" data-i18n="sort.newest">Mais recentes</button>
+                <button type="button" role="option" data-sort="oldest" data-i18n="sort.oldest">Mais antigas</button>
+              </div>
+              <select class="native-sort-select" id="sortSelect" tabindex="-1" aria-hidden="true">
                 <option value="alphabetical" data-i18n="sort.alphabetical">Alfabética: A–Z</option>
                 <option value="reverseAlphabetical" data-i18n="sort.reverseAlphabetical">Alfabética: Z–A</option>
                 <option value="newest" data-i18n="sort.newest">Mais recentes</option>
                 <option value="oldest" data-i18n="sort.oldest">Mais antigas</option>
               </select>
-            </label>
+            </div>
             <div class="filters" id="statusFilters" role="group" aria-label="Filtrar perfis" data-i18n-aria-label="list.filterProfiles">
               <button type="button" class="filter-button active" data-filter="all" aria-pressed="true"><span data-i18n="filters.all">Todos</span> <span class="filter-count" id="allFilterCount">0</span></button>
               <button type="button" class="filter-button" data-filter="pending" aria-pressed="false"><span class="filter-label" id="pendingFilterLabel" data-i18n="filters.pending">Pendentes</span> <span class="filter-count" id="pendingFilterCount">0</span></button>
@@ -279,22 +364,27 @@
           </div>
         </div>
 
-        <section class="history-card" aria-labelledby="historyTitle">
+        <section class="history-card" id="resultsHistoryCard" aria-labelledby="historyTitle">
           <div class="history-card-heading">
             <div>
               <p class="eyebrow" data-i18n="history.savedHere">Salvo neste aparelho</p>
-              <h2 id="historyTitle" data-i18n="history.title">Histórico de snapshots</h2>
+              <h2 id="historyTitle" data-i18n="history.title">Histórico de análises</h2>
               <p id="historySubtitle" data-i18n="history.subtitle">Cada nova importação é comparada com a anterior.</p>
             </div>
-            <div class="history-actions">
+            <div class="history-actions" id="resultsHistoryActions">
               <button type="button" class="utility-button" data-action="backup" data-i18n="actions.backup">Baixar backup</button>
               <button type="button" class="utility-button" data-action="restore" data-i18n="actions.restore">Restaurar backup</button>
             </div>
           </div>
           <div class="history-list" id="historyList"></div>
-          <p class="history-device-note" data-i18n="history.deviceNote">Este histórico não acompanha você para outro dispositivo automaticamente. Use o backup antes de trocar de dispositivo ou limpar o navegador.</p>
+          <p class="history-device-note" id="resultsHistoryDeviceNote" data-i18n="history.deviceNote">Este histórico não acompanha você para outro dispositivo automaticamente. Use o backup antes de trocar de dispositivo ou limpar o navegador.</p>
           <div class="message" id="historyMessage" role="status" hidden></div>
         </section>
+
+        <aside class="creator-cta">
+          <div><p class="eyebrow" data-i18n="creator.eyebrow">Gostou do InstaCheck?</p><h2 data-i18n="creator.title">Acompanhe as próximas atualizações e outros projetos.</h2></div>
+          <a class="creator-button" data-creator-link href="https://www.instagram.com/viniohc/" target="_blank" rel="noopener noreferrer"><span data-i18n="creator.instagram">@viniohc no Instagram ↗</span></a>
+        </aside>
 
         <p class="manual-note" data-i18n="privacy.manual">O InstaCheck não automatiza ações no Instagram. Você decide quais perfis abrir e resolve cada ação manualmente.</p>
       </section>
@@ -307,6 +397,7 @@
 
     <footer>
       <span>InstaCheck</span>
+      <span><span data-i18n="footer.madeBy">Feito por</span> <a class="creator-link" data-creator-link href="https://www.instagram.com/viniohc/" target="_blank" rel="noopener noreferrer">@viniohc ↗</a></span>
       <span data-i18n="footer.privacy">Privacidade por padrão. Seus dados são seus.</span>
     </footer>
 
@@ -321,18 +412,32 @@
           </div>
           <button class="dialog-close" id="closeEditAccountButton" type="button" aria-label="Fechar" data-i18n-aria-label="actions.close">×</button>
         </div>
-        <p data-i18n="account.editHelp">Corrija o username sem perder snapshots, progresso ou comparações desta conta.</p>
+        <p data-i18n="account.editHelp">Corrija o username sem perder análises, progresso ou comparações desta conta.</p>
         <label for="editAccountInput" data-i18n="account.newUsername">Novo @username</label>
         <div class="account-field">
           <span aria-hidden="true">@</span>
           <input id="editAccountInput" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30">
         </div>
-        <p class="dialog-note" data-i18n="account.mergeNote">Se já existir um histórico com esse username, os snapshots serão unidos sem duplicar.</p>
+        <p class="dialog-note" data-i18n="account.mergeNote">Se já existir um histórico com esse username, as análises serão unidas sem duplicar.</p>
         <div class="message" id="editAccountMessage" role="alert" hidden></div>
         <div class="dialog-actions">
           <button class="utility-button" id="cancelEditAccountButton" type="button" data-i18n="actions.cancel">Cancelar</button>
           <button class="primary-button" id="saveEditAccountButton" type="submit" data-i18n="actions.save">Salvar username</button>
         </div>
+      </form>
+    </dialog>
+
+    <dialog class="share-dialog" id="shareDialog" aria-labelledby="shareDialogTitle">
+      <form method="dialog">
+        <div class="dialog-heading"><div><p class="eyebrow" data-i18n="share.eyebrow">Imagem privada</p><h2 id="shareDialogTitle" data-i18n="share.title">Compartilhar minha análise</h2></div><button class="dialog-close" id="closeShareButton" type="button" aria-label="Fechar" data-i18n-aria-label="actions.close">×</button></div>
+        <p data-i18n="share.description">A imagem mostra apenas estatísticas. Nenhum username analisado será incluído.</p>
+        <div class="share-formats">
+          <label><input type="radio" name="shareFormat" value="story" checked><span><strong data-i18n="share.story">Story</strong><small>1080 × 1920</small></span></label>
+          <label><input type="radio" name="shareFormat" value="post"><span><strong data-i18n="share.post">Post</strong><small>1080 × 1080</small></span></label>
+        </div>
+        <canvas id="shareCanvas" width="1080" height="1920" aria-label="Prévia da imagem compartilhável" data-i18n-aria-label="share.preview"></canvas>
+        <div class="dialog-actions share-dialog-actions"><button class="utility-button" id="cancelShareButton" type="button" data-i18n="actions.cancel">Cancelar</button><button class="utility-button" id="downloadShareButton" type="button" data-i18n="share.download">Baixar imagem</button><button class="primary-button" id="generateShareButton" type="button" data-i18n="share.generate">Compartilhar</button></div>
+        <p class="dialog-note" id="shareFallbackNote" data-i18n="share.fallback">Você pode baixar a imagem diretamente ou abrir o compartilhamento do dispositivo.</p>
       </form>
     </dialog>
   </body>

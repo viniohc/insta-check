@@ -8,6 +8,11 @@ const MAX_BACKUP_SIZE = 20 * 1024 * 1024;
 const USERNAME_PATTERN = /^[a-z0-9._]{1,30}$/i;
 const RESERVED_PATHS = new Set(["accounts", "direct", "explore", "p", "reel", "reels", "stories"]);
 const ARCHIVE_ENTRY_PATTERN = /(?:^|\/)(?:followers(?:_\d+)?|following(?:_\d+)?|pending_follow_requests(?:_sent)?|recent_follow_requests|recently_unfollowed_(?:profiles|accounts))\.json$/i;
+const CREATOR = Object.freeze({
+  instagramHandle: "@viniohc",
+  instagramUrl: "https://www.instagram.com/viniohc/"
+});
+const ROUTES = Object.freeze({ home: "#/", help: "#/ajuda", history: "#/historico", analysis: "#/analise" });
 const { t: tr, getLocale } = window.InstaCheckI18n;
 
 let DATASET_CONFIG = createDatasetConfig();
@@ -117,6 +122,7 @@ function createDatasetConfig() {
 
 const elements = {
   startView: document.querySelector("#startView"),
+  historyView: document.querySelector("#historyView"),
   resultsView: document.querySelector("#resultsView"),
   accountInput: document.querySelector("#accountInput"),
   savedAccounts: document.querySelector("#savedAccounts"),
@@ -124,6 +130,7 @@ const elements = {
   dropZone: document.querySelector("#dropZone"),
   fileInput: document.querySelector("#fileInput"),
   selectButton: document.querySelector("#selectButton"),
+  demoButton: document.querySelector("#demoButton"),
   uploadTitle: document.querySelector("#uploadTitle"),
   uploadMessage: document.querySelector("#uploadMessage"),
   newAnalysisButton: document.querySelector("#newAnalysisButton"),
@@ -136,6 +143,11 @@ const elements = {
   historyDeltas: document.querySelector("#historyDeltas"),
   lostFollowersCount: document.querySelector("#lostFollowersCount"),
   newFollowersCount: document.querySelector("#newFollowersCount"),
+  followersDeltaCount: document.querySelector("#followersDeltaCount"),
+  followingDeltaCount: document.querySelector("#followingDeltaCount"),
+  resultsHistoryActions: document.querySelector("#resultsHistoryActions"),
+  resultsHistoryDeviceNote: document.querySelector("#resultsHistoryDeviceNote"),
+  historyTitle: document.querySelector("#historyTitle"),
   viewLostButton: document.querySelector("#viewLostButton"),
   followersCount: document.querySelector("#followersCount"),
   followingCount: document.querySelector("#followingCount"),
@@ -151,6 +163,9 @@ const elements = {
   datasetTabs: document.querySelector("#datasetTabs"),
   searchInput: document.querySelector("#searchInput"),
   sortSelect: document.querySelector("#sortSelect"),
+  sortButton: document.querySelector("#sortButton"),
+  sortCurrent: document.querySelector("#sortCurrent"),
+  sortMenu: document.querySelector("#sortMenu"),
   statusFilters: document.querySelector("#statusFilters"),
   filterButtons: [...document.querySelectorAll(".filter-button")],
   pendingFilterLabel: document.querySelector("#pendingFilterLabel"),
@@ -171,6 +186,13 @@ const elements = {
   historyList: document.querySelector("#historyList"),
   historyMessage: document.querySelector("#historyMessage"),
   openHistoryButton: document.querySelector("#openHistoryButton"),
+  historyBackButton: document.querySelector("#historyBackButton"),
+  historyAccountsBackButton: document.querySelector("#historyAccountsBackButton"),
+  historyAccounts: document.querySelector("#historyAccounts"),
+  historyAccountDetail: document.querySelector("#historyAccountDetail"),
+  historyAccountTitle: document.querySelector("#historyAccountTitle"),
+  historyAnalysisList: document.querySelector("#historyAnalysisList"),
+  historyHubMessage: document.querySelector("#historyHubMessage"),
   backupButtons: [...document.querySelectorAll('[data-action="backup"]')],
   restoreButtons: [...document.querySelectorAll('[data-action="restore"]')],
   backupFileInput: document.querySelector("#backupFileInput"),
@@ -184,7 +206,14 @@ const elements = {
   editAccountMessage: document.querySelector("#editAccountMessage"),
   closeEditAccountButton: document.querySelector("#closeEditAccountButton"),
   cancelEditAccountButton: document.querySelector("#cancelEditAccountButton"),
-  saveEditAccountButton: document.querySelector("#saveEditAccountButton")
+  saveEditAccountButton: document.querySelector("#saveEditAccountButton"),
+  shareResultButton: document.querySelector("#shareResultButton"),
+  shareDialog: document.querySelector("#shareDialog"),
+  closeShareButton: document.querySelector("#closeShareButton"),
+  cancelShareButton: document.querySelector("#cancelShareButton"),
+  generateShareButton: document.querySelector("#generateShareButton"),
+  downloadShareButton: document.querySelector("#downloadShareButton"),
+  shareCanvas: document.querySelector("#shareCanvas")
 };
 
 const state = {
@@ -207,19 +236,20 @@ const state = {
   snapshots: [],
   currentSnapshot: null,
   previousSnapshot: null,
-  viewingHistoricalSnapshot: false
+  viewingHistoricalSnapshot: false,
+  isDemo: false,
+  historyAccountKey: ""
 };
 
 const storageReady = initializeStorage();
 
 elements.selectButton.addEventListener("click", openImportPicker);
+elements.demoButton.addEventListener("click", launchDemo);
 elements.newAnalysisButton.addEventListener("click", () => {
+  state.isDemo = false;
+  elements.editAccountButton.hidden = false;
   hideMessage();
-  elements.resultsView.hidden = true;
-  elements.startView.hidden = false;
-  elements.tutorialFab.hidden = false;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  openImportPicker();
+  showStartView(true);
 });
 
 elements.dropZone.addEventListener("click", (event) => {
@@ -260,7 +290,38 @@ elements.searchInput.addEventListener("input", (event) => {
 
 elements.sortSelect.addEventListener("change", (event) => {
   state.sort = event.target.value;
+  updateSortPicker();
   renderProfiles();
+});
+
+elements.sortButton.addEventListener("click", () => {
+  const shouldOpen = elements.sortMenu.hidden;
+  closeSortPicker();
+  elements.sortMenu.hidden = !shouldOpen;
+  elements.sortButton.setAttribute("aria-expanded", String(shouldOpen));
+  if (shouldOpen) elements.sortMenu.querySelector(`[data-sort="${state.sort}"]`)?.focus();
+});
+
+elements.sortMenu.querySelectorAll("[data-sort]").forEach((button) => button.addEventListener("click", () => {
+  elements.sortSelect.value = button.dataset.sort;
+  elements.sortSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  closeSortPicker(true);
+}));
+
+elements.sortMenu.addEventListener("keydown", (event) => {
+  const options = [...elements.sortMenu.querySelectorAll("[data-sort]")];
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeSortPicker(true);
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const currentIndex = options.indexOf(document.activeElement);
+  const nextIndex = event.key === "Home" ? 0
+    : event.key === "End" ? options.length - 1
+      : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+  options[nextIndex]?.focus();
 });
 
 elements.filterButtons.forEach((button) => {
@@ -276,6 +337,8 @@ elements.copyButton.addEventListener("click", copyVisibleUsernames);
 elements.exportButton.addEventListener("click", exportVisibleProfiles);
 elements.viewLostButton.addEventListener("click", () => selectDataset("lostFollowers", true));
 elements.openHistoryButton.addEventListener("click", openSelectedAccountHistory);
+elements.historyBackButton.addEventListener("click", () => showStartView());
+elements.historyAccountsBackButton.addEventListener("click", showHistoryAccounts);
 elements.backupButtons.forEach((button) => button.addEventListener("click", exportHistoryBackup));
 elements.restoreButtons.forEach((button) => button.addEventListener("click", () => elements.backupFileInput.click()));
 elements.backupFileInput.addEventListener("change", () => {
@@ -292,6 +355,24 @@ elements.editAccountForm.addEventListener("submit", handleEditAccountSubmit);
 elements.editAccountDialog.addEventListener("click", (event) => {
   if (event.target === elements.editAccountDialog) closeEditAccountDialog();
 });
+elements.shareResultButton.addEventListener("click", openShareDialog);
+elements.closeShareButton.addEventListener("click", closeShareDialog);
+elements.cancelShareButton.addEventListener("click", closeShareDialog);
+elements.generateShareButton.addEventListener("click", generateAndShareResult);
+elements.downloadShareButton.addEventListener("click", downloadShareImage);
+elements.shareDialog.addEventListener("click", (event) => {
+  if (event.target === elements.shareDialog) closeShareDialog();
+});
+document.querySelectorAll("[data-creator-link]").forEach((link) => {
+  link.href = CREATOR.instagramUrl;
+  if (!link.children.length) link.textContent = link.textContent.replace(/@viniohc/g, CREATOR.instagramHandle);
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".sort-field")) closeSortPicker();
+});
+
+window.addEventListener("hashchange", handleRouteChange);
 
 document.addEventListener("keydown", (event) => {
   const canFocusSearch = !elements.resultsView.hidden && event.key === "/" && document.activeElement !== elements.searchInput;
@@ -303,11 +384,67 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("instacheck:languagechange", async () => {
   DATASET_CONFIG = createDatasetConfig();
+  updateSortPicker();
   await renderSavedAccounts();
   if (!elements.resultsView.hidden && state.accountKey) renderDashboard();
+  if (!elements.historyView.hidden) renderHistoryHub();
 });
 
-function showTutorial() {
+updateSortPicker();
+window.setTimeout(handleRouteChange, 0);
+
+function updateSortPicker() {
+  elements.sortSelect.value = state.sort;
+  elements.sortCurrent.textContent = tr(`sort.${state.sort}`);
+  elements.sortMenu.querySelectorAll("[data-sort]").forEach((button) => {
+    const isSelected = button.dataset.sort === state.sort;
+    button.classList.toggle("active", isSelected);
+    button.setAttribute("aria-selected", String(isSelected));
+  });
+}
+
+function closeSortPicker(returnFocus = false) {
+  elements.sortMenu.hidden = true;
+  elements.sortButton.setAttribute("aria-expanded", "false");
+  if (returnFocus) elements.sortButton.focus();
+}
+
+function setRoute(route, replace = false) {
+  if (window.location.hash === route) return;
+  if (replace) window.history.replaceState(null, "", route);
+  else window.location.hash = route.slice(1);
+}
+
+async function handleRouteChange() {
+  const route = window.location.hash || ROUTES.home;
+  if (route === ROUTES.help) {
+    showTutorial(false);
+    return;
+  }
+  if (route === ROUTES.history) {
+    await openSelectedAccountHistory(false);
+    return;
+  }
+  if (route === ROUTES.analysis) {
+    if (!state.currentSnapshot) {
+      showStartView(false, false);
+      setRoute(ROUTES.home, true);
+      return;
+    }
+    elements.startView.hidden = true;
+    elements.historyView.hidden = true;
+    elements.resultsView.hidden = false;
+    elements.tutorialFab.hidden = false;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  showStartView(false, false);
+  if (route !== ROUTES.home) setRoute(ROUTES.home, true);
+}
+
+function showTutorial(updateRoute = true) {
+  if (updateRoute) setRoute(ROUTES.help);
+  if (elements.startView.hidden) showStartView(false, false);
   elements.tutorialGuide.scrollIntoView({ behavior: "smooth", block: "start" });
   elements.tutorialGuide.classList.remove("tutorial-attention");
   window.requestAnimationFrame(() => elements.tutorialGuide.classList.add("tutorial-attention"));
@@ -447,20 +584,207 @@ function openImportPicker() {
   elements.fileInput.click();
 }
 
-async function openSelectedAccountHistory() {
+async function openSelectedAccountHistory(updateRoute = true) {
   await storageReady;
-  const account = readAccountInput(false);
-  if (!account || !state.database) {
-    showHistoryMessage(tr("messages.noAccountHistory"));
+  if (!state.database) {
+    showStartView(false, false);
+    showMessage(tr("messages.noAccountHistory"), "warning");
+    setRoute(ROUTES.home, true);
     return;
   }
-  const snapshots = await getSnapshots(account.key);
+  const accounts = await getAccounts();
+  if (!accounts.length) {
+    showStartView(false, false);
+    showMessage(tr("messages.noAccountHistory"), "warning");
+    setRoute(ROUTES.home, true);
+    return;
+  }
+  state.historyAccountKey = "";
+  elements.startView.hidden = true;
+  elements.resultsView.hidden = true;
+  elements.historyView.hidden = false;
+  elements.tutorialFab.hidden = false;
+  if (updateRoute) setRoute(ROUTES.history);
+  await renderHistoryHub();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showStartView(scroll = true, updateRoute = true) {
+  elements.resultsView.hidden = true;
+  elements.historyView.hidden = true;
+  elements.startView.hidden = false;
+  elements.tutorialFab.hidden = false;
+  if (updateRoute) setRoute(ROUTES.home);
+  if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function renderHistoryHub() {
+  if (!state.database) return;
+  const accounts = await getAccounts();
+  elements.historyAccounts.replaceChildren();
+  elements.historyHubMessage.hidden = true;
+  const fragment = document.createDocumentFragment();
+  for (const account of accounts) {
+    const card = document.createElement("article");
+    card.className = "history-account-card";
+    const copy = document.createElement("div");
+    const username = document.createElement("h2");
+    username.textContent = `@${account.accountUsername}`;
+    const count = document.createElement("strong");
+    count.textContent = tr(account.snapshotCount === 1 ? "history.savedCountOne" : "history.savedCountMany", { count: formatNumber(account.snapshotCount) });
+    const latest = document.createElement("span");
+    latest.textContent = tr("history.lastAnalysis", { date: formatHistoryDate(account.lastSnapshotAt) });
+    copy.append(username, count, latest);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "primary-button";
+    button.textContent = tr("actions.viewHistory");
+    button.addEventListener("click", () => showHistoryAccount(account.accountKey));
+    card.append(copy, button);
+    fragment.append(card);
+  }
+  elements.historyAccounts.append(fragment);
+  showHistoryAccounts();
+}
+
+function showHistoryAccounts() {
+  state.historyAccountKey = "";
+  elements.historyAccounts.hidden = false;
+  elements.historyAccountDetail.hidden = true;
+}
+
+async function showHistoryAccount(accountKey) {
+  const snapshots = await getSnapshots(accountKey);
   if (!snapshots.length) {
-    showHistoryMessage(tr("messages.noAccountHistory"));
+    await renderHistoryHub();
     return;
   }
-  state.snapshots = snapshots;
-  await openSnapshotResults(snapshots[0].id);
+  state.historyAccountKey = accountKey;
+  elements.historyAccounts.hidden = true;
+  elements.historyAccountDetail.hidden = false;
+  elements.historyAccountTitle.textContent = `@${snapshots[0].accountUsername}`;
+  elements.historyAnalysisList.replaceChildren();
+  const fragment = document.createDocumentFragment();
+  snapshots.forEach((snapshot) => {
+    const row = document.createElement("article");
+    row.className = "saved-analysis-row";
+    const copy = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = tr("history.savedOn", { date: formatHistoryDateTime(snapshot.createdAt) });
+    const counts = document.createElement("p");
+    counts.textContent = tr("history.counts", { followers: formatNumber(snapshot.followersCount), following: formatNumber(snapshot.followingCount) });
+    copy.append(title, counts);
+    const actions = document.createElement("div");
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "primary-button";
+    openButton.textContent = tr("actions.openAnalysis");
+    openButton.addEventListener("click", () => openSnapshotResults(snapshot.id));
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "delete-analysis-button";
+    deleteButton.textContent = tr("actions.deleteAnalysis");
+    deleteButton.addEventListener("click", () => deleteSavedAnalysis(snapshot));
+    actions.append(openButton, deleteButton);
+    row.append(copy, actions);
+    fragment.append(row);
+  });
+  elements.historyAnalysisList.append(fragment);
+}
+
+async function deleteSavedAnalysis(snapshot) {
+  const accountSnapshots = await getSnapshots(snapshot.accountKey);
+  const confirmationKey = accountSnapshots.length === 1 ? "history.deleteLastConfirm" : "history.deleteConfirm";
+  if (!window.confirm(tr(confirmationKey))) return;
+
+  const deleteTransaction = state.database.transaction("snapshots", "readwrite");
+  deleteTransaction.objectStore("snapshots").delete(snapshot.id);
+  await waitForTransaction(deleteTransaction);
+  const remaining = await getSnapshots(snapshot.accountKey);
+  const accountTransaction = state.database.transaction("accounts", "readwrite");
+  if (remaining.length) {
+    accountTransaction.objectStore("accounts").put({
+      accountKey: snapshot.accountKey,
+      accountUsername: snapshot.accountUsername,
+      lastUsedAt: Date.now(),
+      lastSnapshotAt: remaining[0].createdAt,
+      snapshotCount: remaining.length
+    });
+  } else {
+    accountTransaction.objectStore("accounts").delete(snapshot.accountKey);
+    delete state.progress[snapshot.accountKey];
+    saveProgress();
+  }
+  await waitForTransaction(accountTransaction);
+  await renderSavedAccounts();
+  if (remaining.length) await showHistoryAccount(snapshot.accountKey);
+  else await renderHistoryHub();
+  elements.historyHubMessage.textContent = tr("history.deleted");
+  elements.historyHubMessage.className = "message success";
+  elements.historyHubMessage.hidden = false;
+}
+
+function launchDemo() {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const createProfiles = (prefix, count, offset = 0) => Array.from({ length: count }, (_, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    return normalizeProfile(`${prefix}_${number}`, now - ((index + offset) % 240) * day);
+  });
+  const mutuals = createProfiles("mutuo_demo", 745);
+  const followersOnly = createProfiles("seguidor_demo", 516, 20);
+  const newFollowers = createProfiles("novo_demo", 23, 2);
+  const nonFollowers = createProfiles("exemplo_demo", 147, 40);
+  const lostFollowers = createProfiles("mudanca_demo", 8, 8);
+  const currentFollowers = [...mutuals, ...followersOnly, ...newFollowers];
+  const previousFollowers = [...mutuals, ...followersOnly, ...lostFollowers];
+  const following = [...mutuals, ...nonFollowers];
+  const currentCreatedAt = now - day;
+  const previousCreatedAt = now - 8 * day;
+  const toDateRecord = (profiles) => Object.fromEntries(profiles.map((profile) => [profile.key, profile.timestamp]));
+  const toNames = (profiles) => profiles.map((profile) => profile.username);
+  const makeDemoSnapshot = (profiles, createdAt, suffix) => ({
+    id: `__demo__:${suffix}`,
+    accountKey: "__demo__",
+    accountUsername: "demo_instacheck",
+    createdAt,
+    sourceName: tr("demo.source"),
+    fingerprint: suffix,
+    followers: toNames(profiles),
+    following: toNames(following),
+    followerDates: toDateRecord(profiles),
+    followingDates: toDateRecord(following),
+    followersCount: profiles.length,
+    followingCount: following.length
+  });
+
+  state.isDemo = true;
+  state.accountKey = "__demo__";
+  state.accountUsername = "demo_instacheck";
+  state.followers = new Map(currentFollowers.map((profile) => [profile.key, profile]));
+  state.following = new Map(following.map((profile) => [profile.key, profile]));
+  state.datasets = buildDatasets([]);
+  state.currentSnapshot = makeDemoSnapshot(currentFollowers, currentCreatedAt, "current");
+  state.previousSnapshot = makeDemoSnapshot(previousFollowers, previousCreatedAt, "previous");
+  state.snapshots = [state.currentSnapshot, state.previousSnapshot];
+  buildComparisonDatasets();
+  state.availableDatasetKeys = ["lostFollowers", "newFollowers", "nonFollowers", "followersOnly", "mutuals"];
+  state.currentDataset = "nonFollowers";
+  state.importedFiles = [];
+  state.importedArchiveName = "";
+  state.viewingHistoricalSnapshot = false;
+  state.query = "";
+  state.filter = "all";
+  elements.searchInput.value = "";
+  resetFilterButtons();
+  renderDashboard();
+  elements.editAccountButton.hidden = true;
+  elements.startView.hidden = true;
+  elements.historyView.hidden = true;
+  elements.resultsView.hidden = false;
+  elements.tutorialFab.hidden = false;
+  setRoute(ROUTES.analysis);
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function processFiles(files) {
@@ -506,6 +830,8 @@ async function processFiles(files) {
 
     state.accountKey = account.key;
     state.accountUsername = account.username;
+    state.isDemo = false;
+    elements.editAccountButton.hidden = false;
     state.followers = mergeProfiles(followerFiles);
     state.following = mergeProfiles(followingFiles);
     state.datasets = buildDatasets(recognizedFiles);
@@ -527,7 +853,8 @@ async function processFiles(files) {
     await renderSavedAccounts();
     elements.startView.hidden = true;
     elements.resultsView.hidden = false;
-    elements.tutorialFab.hidden = true;
+    elements.tutorialFab.hidden = false;
+    setRoute(ROUTES.analysis);
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     showMessage(error.message || tr("messages.processError"));
@@ -879,7 +1206,9 @@ function createTimestampRecord(profiles) {
 }
 
 function renderDashboard(ignoredFileCount = 0) {
-  elements.currentAccountBadge.textContent = tr("results.accountBadge", { username: state.accountUsername });
+  elements.currentAccountBadge.textContent = state.isDemo
+    ? tr("demo.badge")
+    : tr("results.accountBadge", { username: state.accountUsername });
   elements.followersCount.textContent = formatNumber(state.followers.size);
   elements.followingCount.textContent = formatNumber(state.following.size);
   elements.mutualCount.textContent = formatNumber(state.datasets.mutuals.length);
@@ -890,7 +1219,9 @@ function renderDashboard(ignoredFileCount = 0) {
       ? tr("results.nonFollowersCount", { count: formatNumber(state.datasets.nonFollowers.length) })
       : tr("results.allFollowBack")
   ];
-  if (state.viewingHistoricalSnapshot && state.currentSnapshot) {
+  if (state.isDemo) {
+    summaryParts.unshift(tr("demo.summary"));
+  } else if (state.viewingHistoricalSnapshot && state.currentSnapshot) {
     summaryParts.unshift(tr("results.snapshotViewing", { date: formatHistoryDateTime(state.currentSnapshot.createdAt) }));
   } else if (state.storageAvailable) summaryParts.unshift(tr("results.snapshotSaved", { username: state.accountUsername }));
   else summaryParts.unshift(tr("results.noStorage"));
@@ -909,6 +1240,12 @@ function renderDashboard(ignoredFileCount = 0) {
 function renderFileSummary() {
   elements.fileSummary.replaceChildren();
   const fragment = document.createDocumentFragment();
+  if (state.isDemo) {
+    const demoChip = document.createElement("span");
+    demoChip.className = "file-chip demo-chip";
+    demoChip.textContent = tr("demo.dataLabel");
+    fragment.append(demoChip);
+  }
   if (state.viewingHistoricalSnapshot && state.currentSnapshot) {
     const snapshotChip = document.createElement("span");
     snapshotChip.className = "file-chip archive-chip";
@@ -941,7 +1278,7 @@ function renderHistory() {
   elements.historyDeltas.hidden = !hasPrevious;
   elements.viewLostButton.hidden = !hasPrevious || lostCount === 0;
 
-  if (!state.storageAvailable) {
+  if (!state.storageAvailable && !state.isDemo) {
     elements.historyInsightTitle.textContent = tr("history.unavailableTitle");
     elements.historyInsightDescription.textContent = tr("history.unavailableDescription");
   } else if (!hasPrevious) {
@@ -950,6 +1287,10 @@ function renderHistory() {
   } else {
     elements.lostFollowersCount.textContent = formatNumber(lostCount);
     elements.newFollowersCount.textContent = formatNumber(newCount);
+    const followerDelta = state.currentSnapshot.followersCount - state.previousSnapshot.followersCount;
+    const followingDelta = state.currentSnapshot.followingCount - state.previousSnapshot.followingCount;
+    elements.followersDeltaCount.textContent = formatSignedNumber(followerDelta);
+    elements.followingDeltaCount.textContent = formatSignedNumber(followingDelta);
     elements.historyInsightTitle.textContent = lostCount
       ? tr("history.lostTitle", {
         count: formatNumber(lostCount),
@@ -965,7 +1306,12 @@ function renderHistory() {
 
 function renderHistoryList() {
   elements.historyList.replaceChildren();
-  elements.historySubtitle.textContent = state.storageAvailable
+  elements.resultsHistoryActions.hidden = state.isDemo;
+  elements.resultsHistoryDeviceNote.hidden = state.isDemo;
+  elements.historyTitle.textContent = state.isDemo ? tr("demo.historyTitle") : tr("history.title");
+  elements.historySubtitle.textContent = state.isDemo
+    ? tr("demo.historyHelp")
+    : state.storageAvailable
     ? tr("history.automatic", { username: state.accountUsername })
     : tr("history.unavailable");
 
@@ -1015,7 +1361,8 @@ function renderHistoryList() {
 
 async function openSnapshotResults(snapshotId, options = {}) {
   await storageReady;
-  if (!state.database) {
+  const isDemoSnapshot = String(snapshotId).startsWith("__demo__:");
+  if (!state.database && !isDemoSnapshot) {
     showHistoryMessage(tr("messages.historyUnavailable"));
     return;
   }
@@ -1023,6 +1370,7 @@ async function openSnapshotResults(snapshotId, options = {}) {
   let snapshots = state.snapshots;
   let snapshot = snapshots.find((item) => item.id === snapshotId);
   if (!snapshot) {
+    if (!state.database) return;
     const allSnapshots = await getSnapshotsForAllAccounts();
     snapshot = allSnapshots.find((item) => item.id === snapshotId);
     if (!snapshot) return;
@@ -1047,16 +1395,19 @@ async function openSnapshotResults(snapshotId, options = {}) {
   state.importedFiles = [];
   state.importedArchiveName = "";
   state.viewingHistoricalSnapshot = true;
+  state.isDemo = snapshot.accountKey === "__demo__";
   state.query = "";
   state.filter = "all";
   elements.accountInput.value = snapshot.accountUsername;
+  elements.editAccountButton.hidden = state.isDemo;
   elements.searchInput.value = "";
   resetFilterButtons();
   renderDashboard();
   await renderSavedAccounts();
   elements.startView.hidden = true;
   elements.resultsView.hidden = false;
-  elements.tutorialFab.hidden = true;
+  elements.tutorialFab.hidden = false;
+  if (options.updateRoute !== false) setRoute(ROUTES.analysis);
   if (!options.keepScroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1256,7 +1607,7 @@ function toggleProfileProgress(key, isReviewed) {
   const progress = getProgressSet(state.currentDataset);
   if (isReviewed) progress.add(key);
   else progress.delete(key);
-  saveProgress();
+  if (!state.isDemo) saveProgress();
   renderCurrentDataset();
 }
 
@@ -1268,7 +1619,7 @@ function resetCurrentProgress() {
   if (!currentKeys.some((key) => progress.has(key))) return;
   if (!window.confirm(config.resetMessage)) return;
   currentKeys.forEach((key) => progress.delete(key));
-  saveProgress();
+  if (!state.isDemo) saveProgress();
   renderCurrentDataset();
 }
 
@@ -1405,13 +1756,11 @@ async function renderSavedAccounts() {
 
 function updateSavedAccountSelection() {
   const account = normalizeProfile(elements.accountInput.value);
-  let hasSelectedHistory = false;
   document.querySelectorAll(".saved-account-button").forEach((button) => {
     const isActive = account?.key === button.dataset.account;
     button.classList.toggle("active", isActive);
-    if (isActive) hasSelectedHistory = true;
   });
-  elements.openHistoryButton.disabled = !hasSelectedHistory;
+  elements.openHistoryButton.disabled = elements.openHistoryButton.hidden;
 }
 
 function requestResult(request) {
@@ -1666,7 +2015,8 @@ function exportVisibleProfiles() {
 }
 
 function downloadBlob(content, filename, type) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
@@ -1674,6 +2024,180 @@ function downloadBlob(content, filename, type) {
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function openShareDialog() {
+  drawShareCanvas();
+  if (typeof elements.shareDialog.showModal === "function") elements.shareDialog.showModal();
+  else elements.shareDialog.setAttribute("open", "");
+}
+
+function closeShareDialog() {
+  if (typeof elements.shareDialog.close === "function") elements.shareDialog.close();
+  else elements.shareDialog.removeAttribute("open");
+}
+
+document.querySelectorAll('input[name="shareFormat"]').forEach((input) => input.addEventListener("change", drawShareCanvas));
+
+function drawShareCanvas() {
+  const format = document.querySelector('input[name="shareFormat"]:checked')?.value || "story";
+  const canvas = elements.shareCanvas;
+  const width = 1080;
+  const height = format === "story" ? 1920 : 1080;
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  const scale = height / 1080;
+  const padding = format === "story" ? 86 : 70;
+  const followers = state.followers.size;
+  const following = state.following.size;
+  const mutuals = state.datasets.mutuals.length;
+  const nonFollowers = state.datasets.nonFollowers.length;
+  const newFollowers = state.datasets.newFollowers.length;
+  const lostFollowers = state.datasets.lostFollowers.length;
+
+  context.fillStyle = "#fafafa";
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = "rgba(198,253,80,.22)";
+  context.beginPath();
+  context.arc(width - 70, 95, format === "story" ? 270 : 210, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "rgba(19,19,17,.045)";
+  context.beginPath();
+  context.arc(40, height - 80, format === "story" ? 330 : 220, 0, Math.PI * 2);
+  context.fill();
+
+  drawCanvasPill(context, padding, padding, 260, 60, "#131311");
+  context.fillStyle = "#ffffff";
+  context.font = '800 26px "Poppins", sans-serif';
+  context.fillText("InstaCheck", padding + 28, padding + 40);
+
+  const titleY = padding + (format === "story" ? 190 : 135);
+  context.fillStyle = "#131311";
+  context.font = `800 ${format === "story" ? 76 : 62}px "Poppins", sans-serif`;
+  context.fillText(tr("share.imageTitle"), padding, titleY);
+  context.font = `500 ${format === "story" ? 30 : 25}px "Inter", sans-serif`;
+  context.fillStyle = "#5f625a";
+  context.fillText(tr("share.imageSubtitle"), padding, titleY + 62);
+
+  const cardsTop = titleY + (format === "story" ? 150 : 105);
+  const gap = 22;
+  const cardWidth = (width - padding * 2 - gap) / 2;
+  const cardHeight = format === "story" ? 190 : 142;
+  const stats = [
+    [tr("metrics.followers"), followers, "#ffffff"],
+    [tr("metrics.following"), following, "#f3f2ea"],
+    [tr("metrics.mutuals"), mutuals, "#ffffff"],
+    [tr("metrics.nonFollowers"), nonFollowers, "#c6fd50"]
+  ];
+  stats.forEach(([label, value, color], index) => {
+    const x = padding + (index % 2) * (cardWidth + gap);
+    const y = cardsTop + Math.floor(index / 2) * (cardHeight + gap);
+    drawCanvasCard(context, x, y, cardWidth, cardHeight, color);
+    context.fillStyle = "#5f625a";
+    context.font = `700 ${format === "story" ? 24 : 20}px "Inter", sans-serif`;
+    context.fillText(label, x + 28, y + 42);
+    context.fillStyle = "#131311";
+    context.font = `800 ${format === "story" ? 58 : 44}px "Poppins", sans-serif`;
+    context.fillText(formatNumber(value), x + 28, y + cardHeight - 34);
+  });
+
+  const changeY = cardsTop + 2 * (cardHeight + gap) + (format === "story" ? 36 : 18);
+  drawCanvasCard(context, padding, changeY, width - padding * 2, format === "story" ? 180 : 132, "#131311");
+  context.font = `800 ${format === "story" ? 36 : 28}px "Poppins", sans-serif`;
+  context.fillStyle = "#c6fd50";
+  context.fillText(`+${formatNumber(newFollowers)} ${tr("history.new")}`, padding + 34, changeY + (format === "story" ? 70 : 55));
+  context.fillStyle = "#ffffff";
+  context.fillText(`−${formatNumber(lostFollowers)} ${tr("history.lost")}`, padding + 34, changeY + (format === "story" ? 130 : 102));
+
+  if (format === "story") {
+    const privacyY = changeY + 270;
+    context.fillStyle = "#131311";
+    context.font = '800 42px "Poppins", sans-serif';
+    context.fillText(tr("share.localTitle"), padding, privacyY);
+    context.fillStyle = "#5f625a";
+    context.font = '500 28px "Inter", sans-serif';
+    context.fillText(tr("share.localText"), padding, privacyY + 52);
+  }
+
+  context.fillStyle = "#131311";
+  context.font = `750 ${format === "story" ? 26 : 22}px "Inter", sans-serif`;
+  context.fillText(CREATOR.instagramHandle, padding, height - padding);
+}
+
+function drawCanvasCard(context, x, y, width, height, fill) {
+  context.fillStyle = "#131311";
+  roundCanvasRect(context, x + 8, y + 8, width, height, 26);
+  context.fill();
+  context.fillStyle = fill;
+  roundCanvasRect(context, x, y, width, height, 26);
+  context.fill();
+  context.strokeStyle = "#131311";
+  context.lineWidth = 3;
+  context.stroke();
+}
+
+function drawCanvasPill(context, x, y, width, height, fill) {
+  context.fillStyle = fill;
+  roundCanvasRect(context, x, y, width, height, height / 2);
+  context.fill();
+}
+
+function roundCanvasRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  if (typeof context.roundRect === "function") {
+    context.roundRect(x, y, width, height, radius);
+    return;
+  }
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.moveTo(x + safeRadius, y);
+  context.arcTo(x + width, y, x + width, y + height, safeRadius);
+  context.arcTo(x + width, y + height, x, y + height, safeRadius);
+  context.arcTo(x, y + height, x, y, safeRadius);
+  context.arcTo(x, y, x + width, y, safeRadius);
+  context.closePath();
+}
+
+async function generateAndShareResult() {
+  elements.generateShareButton.disabled = true;
+  try {
+    drawShareCanvas();
+    const blob = await new Promise((resolve) => elements.shareCanvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error(tr("share.error"));
+    const format = document.querySelector('input[name="shareFormat"]:checked')?.value || "story";
+    const filename = `instacheck-minha-analise-${format}.png`;
+    const file = new File([blob], filename, { type: "image/png" });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "InstaCheck", text: tr("share.defaultText") });
+        return;
+      } catch (error) {
+        if (error.name === "AbortError") return;
+      }
+    }
+    downloadBlob(blob, filename, "image/png");
+    flashButtonLabel(elements.generateShareButton, tr("share.downloaded"));
+  } catch (error) {
+    window.alert(error.message || tr("share.error"));
+  } finally {
+    elements.generateShareButton.disabled = false;
+  }
+}
+
+async function downloadShareImage() {
+  elements.downloadShareButton.disabled = true;
+  try {
+    drawShareCanvas();
+    const blob = await new Promise((resolve) => elements.shareCanvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error(tr("share.error"));
+    const format = document.querySelector('input[name="shareFormat"]:checked')?.value || "story";
+    downloadBlob(blob, `instacheck-minha-analise-${format}.png`, "image/png");
+    flashButtonLabel(elements.downloadShareButton, tr("share.downloaded"));
+  } catch (error) {
+    elements.shareFallbackNote.textContent = error.message || tr("share.error");
+  } finally {
+    elements.downloadShareButton.disabled = false;
+  }
 }
 
 function escapeCsvCell(value) {
@@ -1763,4 +2287,9 @@ function joinWithAnd(items) {
 
 function formatNumber(number) {
   return new Intl.NumberFormat(getLocale()).format(number);
+}
+
+function formatSignedNumber(number) {
+  const value = Number(number) || 0;
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${formatNumber(Math.abs(value))}`;
 }
