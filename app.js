@@ -3,10 +3,23 @@ const DATABASE_VERSION = 1;
 const PROGRESS_STORAGE_KEY = "instacheck.progress.v3";
 const PREVIOUS_PROGRESS_STORAGE_KEY = "instacheck.progress.v2";
 const LEGACY_STORAGE_KEY = "instacheck.removed.v1";
-const MAX_ARCHIVE_SIZE = 200 * 1024 * 1024;
+// Limits: 100 MiB compressed ZIP, 120 MiB expanded, 25 MiB per JSON, 80 MiB
+// total JSON, 10,000 ZIP entries, 2,000 files, and 50 manual JSON files.
+const MAX_ARCHIVE_SIZE = 100 * 1024 * 1024;
+const MAX_TOTAL_UNCOMPRESSED_SIZE = 120 * 1024 * 1024;
+const MAX_JSON_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_TOTAL_JSON_SIZE = 80 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES = 10000;
+const MAX_ARCHIVE_FILES = 2000;
+const MAX_IMPORT_FILES = 2000;
+const MAX_MANUAL_JSON_FILES = 50;
 const MAX_BACKUP_SIZE = 20 * 1024 * 1024;
+const MAX_SUPPORTED_TIMESTAMP = 8640000000000000;
 const USERNAME_PATTERN = /^[a-z0-9._]{1,30}$/i;
+const RESERVED_USERNAMES = new Set(["__proto__", "constructor", "prototype", "tostring", "hasownproperty", "tolocalestring", "isprototypeof", "propertyisenumerable", "valueof", "__definegetter__", "__definesetter__", "__lookupgetter__", "__lookupsetter__"]);
 const RESERVED_PATHS = new Set(["accounts", "direct", "explore", "p", "reel", "reels", "stories"]);
+const PROGRESS_DATASETS = new Set(["nonFollowers", "pendingRequests"]);
+const DEMO_ACCOUNT_KEY = "internal:demo";
 const ARCHIVE_ENTRY_PATTERN = /(?:^|\/)(?:followers(?:_\d+)?|following(?:_\d+)?|pending_follow_requests(?:_sent)?|recent_follow_requests|recently_unfollowed_(?:profiles|accounts))\.json$/i;
 const CREATOR = Object.freeze({
   instagramHandle: "@viniohc",
@@ -16,6 +29,7 @@ const ROUTES = Object.freeze({ home: "#/", help: "#/ajuda", history: "#/historic
 const { t: tr, getLocale } = window.InstaCheckI18n;
 
 let DATASET_CONFIG = createDatasetConfig();
+let pendingLegacyProgress = null;
 
 function createDatasetConfig() {
   return {
@@ -122,6 +136,7 @@ function createDatasetConfig() {
 
 const elements = {
   startView: document.querySelector("#startView"),
+  storageWarning: document.querySelector("#storageWarning"),
   historyView: document.querySelector("#historyView"),
   resultsView: document.querySelector("#resultsView"),
   accountInput: document.querySelector("#accountInput"),
@@ -225,6 +240,8 @@ const state = {
   availableDatasetKeys: ["nonFollowers", "followersOnly", "mutuals"],
   currentDataset: "nonFollowers",
   progress: loadProgress(),
+  importInProgress: false,
+  historyPersisted: false,
   filter: "all",
   query: "",
   sort: "alphabetical",
@@ -253,7 +270,7 @@ elements.newAnalysisButton.addEventListener("click", () => {
 });
 
 elements.dropZone.addEventListener("click", (event) => {
-  if (!event.target.closest("button")) openImportPicker();
+  if (!state.importInProgress && !event.target.closest("button")) openImportPicker();
 });
 
 elements.fileInput.addEventListener("change", () => {
@@ -270,6 +287,7 @@ elements.accountInput.addEventListener("input", () => {
 ["dragenter", "dragover"].forEach((eventName) => {
   elements.dropZone.addEventListener(eventName, (event) => {
     event.preventDefault();
+    if (state.importInProgress) return;
     elements.dropZone.classList.add("dragging");
   });
 });
@@ -281,7 +299,9 @@ elements.accountInput.addEventListener("input", () => {
   });
 });
 
-elements.dropZone.addEventListener("drop", (event) => processFiles([...event.dataTransfer.files]));
+elements.dropZone.addEventListener("drop", (event) => {
+  if (!state.importInProgress) processFiles([...event.dataTransfer.files]);
+});
 
 elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value.trim().toLocaleLowerCase("en-US").replace(/^@/, "");
@@ -416,6 +436,7 @@ function setRoute(route, replace = false) {
 }
 
 async function handleRouteChange() {
+  if (state.importInProgress) return;
   const route = window.location.hash || ROUTES.home;
   if (route === ROUTES.help) {
     showTutorial(false);
@@ -569,19 +590,26 @@ async function renameCurrentAccount(account) {
 }
 
 function mergeAccountProgress(oldKey, newKey) {
-  if (oldKey === newKey) return;
-  const source = state.progress[oldKey] || {};
-  if (!state.progress[newKey]) state.progress[newKey] = {};
-  Object.entries(source).forEach(([datasetKey, values]) => {
-    if (!state.progress[newKey][datasetKey]) state.progress[newKey][datasetKey] = new Set();
-    values.forEach((value) => state.progress[newKey][datasetKey].add(value));
+  if (oldKey === newKey || typeof oldKey !== "string" || typeof newKey !== "string") return;
+  const oldAccount = normalizeProfile(oldKey);
+  const newAccount = normalizeProfile(newKey);
+  if (!oldAccount || oldAccount.key !== oldKey || !newAccount || newAccount.key !== newKey) return;
+  const source = state.progress.get(oldKey);
+  if (!source) return;
+  let target = state.progress.get(newKey);
+  if (!target) { target = new Map(); state.progress.set(newKey, target); }
+  source.forEach((values, datasetKey) => {
+    if (!PROGRESS_DATASETS.has(datasetKey)) return;
+    let destination = target.get(datasetKey);
+    if (!destination) { destination = new Set(); target.set(datasetKey, destination); }
+    values.forEach((value) => destination.add(value));
   });
-  delete state.progress[oldKey];
+  state.progress.delete(oldKey);
   saveProgress();
 }
 
 function openImportPicker() {
-  elements.fileInput.click();
+  if (!state.importInProgress) elements.fileInput.click();
 }
 
 async function openSelectedAccountHistory(updateRoute = true) {
@@ -613,7 +641,7 @@ function showStartView(scroll = true, updateRoute = true) {
   elements.resultsView.hidden = true;
   elements.historyView.hidden = true;
   elements.startView.hidden = false;
-  elements.tutorialFab.hidden = false;
+  elements.tutorialFab.hidden = true;
   if (updateRoute) setRoute(ROUTES.home);
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -712,7 +740,7 @@ async function deleteSavedAnalysis(snapshot) {
     });
   } else {
     accountTransaction.objectStore("accounts").delete(snapshot.accountKey);
-    delete state.progress[snapshot.accountKey];
+    state.progress.delete(snapshot.accountKey);
     saveProgress();
   }
   await waitForTransaction(accountTransaction);
@@ -725,6 +753,7 @@ async function deleteSavedAnalysis(snapshot) {
 }
 
 function launchDemo() {
+  if (state.importInProgress) return;
   const now = Date.now();
   const day = 24 * 60 * 60 * 1000;
   const createProfiles = (prefix, count, offset = 0) => Array.from({ length: count }, (_, index) => {
@@ -744,9 +773,10 @@ function launchDemo() {
   const toDateRecord = (profiles) => Object.fromEntries(profiles.map((profile) => [profile.key, profile.timestamp]));
   const toNames = (profiles) => profiles.map((profile) => profile.username);
   const makeDemoSnapshot = (profiles, createdAt, suffix) => ({
-    id: `__demo__:${suffix}`,
-    accountKey: "__demo__",
+    id: DEMO_ACCOUNT_KEY + ":" + suffix,
+    accountKey: DEMO_ACCOUNT_KEY,
     accountUsername: "demo_instacheck",
+    isDemo: true,
     createdAt,
     sourceName: tr("demo.source"),
     fingerprint: suffix,
@@ -759,7 +789,7 @@ function launchDemo() {
   });
 
   state.isDemo = true;
-  state.accountKey = "__demo__";
+  state.accountKey = DEMO_ACCOUNT_KEY;
   state.accountUsername = "demo_instacheck";
   state.followers = new Map(currentFollowers.map((profile) => [profile.key, profile]));
   state.following = new Map(following.map((profile) => [profile.key, profile]));
@@ -788,37 +818,29 @@ function launchDemo() {
 }
 
 async function processFiles(files) {
-  if (files.length === 1 && await isInstaCheckBackup(files[0])) {
-    await restoreHistoryBackup(files[0], { openLatest: true });
-    return;
-  }
-
-  const account = readAccountInput(true);
-  if (!account) return;
-  if (!files.length) {
-    showMessage(tr("messages.selectFiles"));
-    return;
-  }
-
+  if (state.importInProgress) return;
+  const selectedFiles = Array.from(files || []);
+  if (!selectedFiles.length) { showMessage(tr("messages.selectFiles")); return; }
+  state.importInProgress = true;
   setProcessing(true);
   hideMessage();
-
   try {
     await storageReady;
+    const importResult = await prepareImport(selectedFiles);
+    if (importResult.backupData) {
+      await restoreHistoryBackupData(importResult.backupData, { openLatest: true, allowDuringImport: true });
+      return;
+    }
+    const account = readAccountInput(true);
+    if (!account) return;
     claimLegacyProgress(account.key);
-    const importResult = await prepareImport(files);
     const recognizedFiles = [];
     const ignoredFiles = [];
-
     importResult.parsedFiles.forEach(({ name, data }) => {
       const type = identifyFileType(name, data);
-      if (!type) {
-        ignoredFiles.push(name);
-        return;
-      }
+      if (!type) { ignoredFiles.push(name); return; }
       recognizedFiles.push({ name, type, profiles: extractProfiles(data) });
     });
-
     const followerFiles = getFilesByType(recognizedFiles, "followers");
     const followingFiles = getFilesByType(recognizedFiles, "following");
     if (!followerFiles.length || !followingFiles.length) {
@@ -827,10 +849,10 @@ async function processFiles(files) {
       if (!followingFiles.length) missing.push("following.json");
       throw new Error(tr("messages.missingFiles", { files: joinWithAnd(missing) }));
     }
-
     state.accountKey = account.key;
     state.accountUsername = account.username;
     state.isDemo = false;
+    state.historyPersisted = false;
     elements.editAccountButton.hidden = false;
     state.followers = mergeProfiles(followerFiles);
     state.following = mergeProfiles(followingFiles);
@@ -839,84 +861,98 @@ async function processFiles(files) {
     state.importedArchiveName = importResult.archiveName;
     state.viewingHistoricalSnapshot = false;
     state.availableDatasetKeys = ["nonFollowers", "followersOnly", "mutuals"];
-
     ["pendingRequests", "recentRequests", "recentlyUnfollowed"].forEach((type) => {
       if (getFilesByType(recognizedFiles, type).length) state.availableDatasetKeys.push(type);
     });
-
     await updateHistoryForCurrentAnalysis(importResult.sourceName);
     state.query = "";
     state.filter = "all";
     elements.searchInput.value = "";
     resetFilterButtons();
     renderDashboard(ignoredFiles.length);
-    await renderSavedAccounts();
     elements.startView.hidden = true;
     elements.resultsView.hidden = false;
+    elements.historyView.hidden = true;
     elements.tutorialFab.hidden = false;
+    try { await renderSavedAccounts(); } catch { state.storageAvailable = false; }
     setRoute(ROUTES.analysis);
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (error) {
     showMessage(error.message || tr("messages.processError"));
   } finally {
+    state.importInProgress = false;
     setProcessing(false);
   }
 }
 
 async function prepareImport(files) {
+  if (!files.length) throw new Error(tr("messages.selectFiles"));
+  if (files.length > MAX_IMPORT_FILES) throw new Error(tr("messages.tooManyFiles"));
   const zipFiles = files.filter((file) => file.name.toLocaleLowerCase("en-US").endsWith(".zip"));
   const jsonFiles = files.filter((file) => file.name.toLocaleLowerCase("en-US").endsWith(".json"));
-
   if (zipFiles.length) {
     if (zipFiles.length !== 1 || files.length !== 1) throw new Error(tr("messages.oneZip"));
     const archive = zipFiles[0];
     if (archive.size > MAX_ARCHIVE_SIZE) throw new Error(tr("messages.zipTooLarge"));
-    return {
-      parsedFiles: await readInstagramArchive(archive),
-      archiveName: archive.name,
-      sourceName: archive.name
-    };
+    return { parsedFiles: await readInstagramArchive(archive), archiveName: archive.name, sourceName: archive.name };
   }
-
   if (jsonFiles.length !== files.length) throw new Error(tr("messages.zipOrJson"));
-  return {
-    parsedFiles: await Promise.all(jsonFiles.map(readJsonFile)),
-    archiveName: "",
-    sourceName: tr("messages.jsonFiles", { count: jsonFiles.length })
-  };
+  if (jsonFiles.length > MAX_MANUAL_JSON_FILES) throw new Error(tr("messages.tooManyFiles"));
+  const totalSize = jsonFiles.reduce((sum, file) => sum + file.size, 0);
+  if (jsonFiles.some((file) => file.size > MAX_JSON_FILE_SIZE)) throw new Error(tr("messages.jsonTooLarge"));
+  if (totalSize > MAX_TOTAL_JSON_SIZE) throw new Error(tr("messages.totalJsonTooLarge"));
+  const parsedFiles = await readJsonFiles(jsonFiles);
+  if (parsedFiles.length === 1 && isInstaCheckBackupData(parsedFiles[0].data)) {
+    if (jsonFiles[0].size > MAX_BACKUP_SIZE) throw new Error(tr("messages.backupLarge"));
+    return { parsedFiles: [], backupData: parsedFiles[0].data, archiveName: "", sourceName: jsonFiles[0].name };
+  }
+  return { parsedFiles, archiveName: "", sourceName: tr("messages.jsonFiles", { count: jsonFiles.length }) };
 }
 
 async function readInstagramArchive(file) {
-  if (!window.fflate) throw new Error(tr("messages.zipReader"));
-
-  try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const entries = window.fflate.unzipSync(bytes, {
-      filter: (entry) => ARCHIVE_ENTRY_PATTERN.test(entry.name.replace(/\\/g, "/"))
-    });
-    const parsedFiles = [];
-
-    Object.entries(entries).forEach(([path, content]) => {
-      const normalizedPath = path.replace(/\\/g, "/");
-      if (!ARCHIVE_ENTRY_PATTERN.test(normalizedPath)) return;
-      const name = normalizedPath.split("/").pop();
-      parsedFiles.push({ name, data: JSON.parse(window.fflate.strFromU8(content)) });
-    });
-
-    if (!parsedFiles.length) throw new Error(tr("messages.zipNoFiles"));
-    return parsedFiles;
-  } catch (error) {
-    if (error.message === tr("messages.zipNoFiles")) throw error;
-    throw new Error(tr("messages.zipOpen"));
-  }
+  if (file.size > MAX_ARCHIVE_SIZE) throw new Error(tr("messages.zipTooLarge"));
+  const buffer = await file.arrayBuffer();
+  const result = await runImportWorker({ type: "zip", name: file.name, buffer }, [buffer]);
+  return result.files;
 }
 
 async function readJsonFile(file) {
-  try {
-    return { name: file.name, data: JSON.parse(await file.text()) };
-  } catch {
-    throw new Error(tr("messages.invalidJson", { name: file.name }));
-  }
+  if (file.size > MAX_JSON_FILE_SIZE) throw new Error(tr("messages.jsonTooLarge"));
+  const [parsed] = await readJsonFiles([file]);
+  return parsed;
+}
+async function readJsonFiles(files) {
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+  if (files.length > MAX_MANUAL_JSON_FILES || files.length > MAX_IMPORT_FILES) throw new Error(tr("messages.tooManyFiles"));
+  if (files.some((file) => file.size > MAX_JSON_FILE_SIZE)) throw new Error(tr("messages.jsonTooLarge"));
+  if (totalSize > MAX_TOTAL_JSON_SIZE) throw new Error(tr("messages.totalJsonTooLarge"));
+  const entries = await Promise.all(files.map(async (file) => ({ name: file.name, buffer: await file.arrayBuffer() })));
+  const result = await runImportWorker({ type: "json", files: entries }, entries.map((entry) => entry.buffer));
+  return result.files;
+}
+function runImportWorker(payload, transferables = []) {
+  if (typeof Worker !== "function") throw new Error(tr("messages.workerUnavailable"));
+  return new Promise((resolve, reject) => {
+    let worker;
+    try { worker = new Worker("./import-worker.js"); }
+    catch { reject(new Error(tr("messages.workerUnavailable"))); return; }
+    const finish = (callback, value) => { worker.terminate(); callback(value); };
+    worker.onmessage = (event) => {
+      const result = event.data;
+      if (!result || !result.ok) {
+        const message = tr("messages." + (result && result.code || "processError"), { name: result && result.name || "" });
+        finish(reject, new Error(message));
+        return;
+      }
+      finish(resolve, result);
+    };
+    worker.onerror = () => finish(reject, new Error(tr("messages.workerUnavailable")));
+    try { worker.postMessage(payload, transferables); }
+    catch { finish(reject, new Error(tr("messages.workerUnavailable"))); }
+  });
+}
+function isInstaCheckBackupData(data) {
+  return data?.app === "InstaCheck" && data?.version === 1 && Array.isArray(data.snapshots);
 }
 
 function readAccountInput(showError) {
@@ -1029,29 +1065,30 @@ function normalizeProfile(candidate, timestamp) {
   if (typeof candidate !== "string") return null;
   let username = candidate.trim();
   if (!username) return null;
-
   if (/^(?:https?:\/\/)?(?:www\.)?instagram\.com\//i.test(username)) {
     try {
-      const url = new URL(username.startsWith("http") ? username : `https://${username}`);
+      const url = new URL(username.startsWith("http") ? username : "https://" + username);
       const segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
       username = segments[0] === "_u" ? segments[1] : segments[0];
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
-
   username = String(username || "").trim().replace(/^@+/, "").replace(/\/$/, "");
   const key = username.toLocaleLowerCase("en-US");
-  if (!USERNAME_PATTERN.test(username) || RESERVED_PATHS.has(key)) return null;
+  if (!USERNAME_PATTERN.test(username) || RESERVED_PATHS.has(key) || RESERVED_USERNAMES.has(key)) return null;
   return { key, username, timestamp: normalizeTimestamp(timestamp) };
 }
 
 function normalizeTimestamp(value) {
   if (value === null || value === undefined || value === "") return null;
-  const numeric = Number(value);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric < 1e12 ? numeric * 1000 : numeric;
+  let numeric;
+  try { numeric = Number(value); } catch { return null; }
+  if (Number.isFinite(numeric)) {
+    if (numeric <= 0) return null;
+    const timestamp = numeric < 1e12 ? numeric * 1000 : numeric;
+    return Number.isFinite(timestamp) && timestamp <= MAX_SUPPORTED_TIMESTAMP ? timestamp : null;
+  }
   const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : parsed;
+  return Number.isFinite(parsed) && Math.abs(parsed) <= MAX_SUPPORTED_TIMESTAMP ? parsed : null;
 }
 
 function normalizeLabel(value) {
@@ -1125,52 +1162,47 @@ async function updateHistoryForCurrentAnalysis(sourceName) {
   state.snapshots = [];
   state.currentSnapshot = null;
   state.previousSnapshot = null;
-  if (!state.storageAvailable || !state.database) return;
-
+  state.historyPersisted = false;
+  let history = [];
+  let canPersist = Boolean(state.storageAvailable && state.database);
+  if (canPersist) {
+    try { history = await getSnapshots(state.accountKey); }
+    catch { canPersist = false; state.storageAvailable = false; }
+  }
   const createdAt = Date.now();
   const followers = sortStrings([...state.followers.values()].map((profile) => profile.username));
   const following = sortStrings([...state.following.values()].map((profile) => profile.username));
   const followerDates = createTimestampRecord(state.followers);
   const followingDates = createTimestampRecord(state.following);
-  const fingerprint = hashString(`${followers.map((item) => item.toLocaleLowerCase("en-US")).join("|")}::${following.map((item) => item.toLocaleLowerCase("en-US")).join("|")}`);
-  const history = await getSnapshots(state.accountKey);
-  const latest = history[0];
+  const fingerprint = hashString(followers.map((item) => item.toLocaleLowerCase("en-US")).join("|") + "::" + following.map((item) => item.toLocaleLowerCase("en-US")).join("|"));
+  const latest = history[0] || null;
   const previousDifferent = history.find((snapshot) => snapshot.fingerprint !== fingerprint) || null;
-
   if (latest?.fingerprint === fingerprint) {
-    const enrichedLatest = { ...latest, followerDates, followingDates };
-    state.currentSnapshot = enrichedLatest;
+    state.currentSnapshot = { ...latest, followerDates, followingDates };
     state.previousSnapshot = previousDifferent;
-    await saveSnapshotAndAccount(enrichedLatest, history.length);
   } else {
-    const snapshot = {
-      id: `${state.accountKey}:${createdAt}:${fingerprint}`,
-      accountKey: state.accountKey,
-      accountUsername: state.accountUsername,
-      createdAt,
-      sourceName,
-      fingerprint,
-      followers,
-      following,
-      followerDates,
-      followingDates,
-      followersCount: followers.length,
-      followingCount: following.length
+    state.currentSnapshot = {
+      id: state.accountKey + ":" + createdAt + ":" + fingerprint,
+      accountKey: state.accountKey, accountUsername: state.accountUsername, createdAt, sourceName,
+      fingerprint, followers, following, followerDates, followingDates,
+      followersCount: followers.length, followingCount: following.length
     };
-    state.currentSnapshot = snapshot;
-    state.previousSnapshot = latest || null;
-    await saveSnapshotAndAccount(snapshot, history.length + 1);
+    state.previousSnapshot = latest;
   }
-
-  state.snapshots = await getSnapshots(state.accountKey);
+  state.snapshots = [state.currentSnapshot, ...history.filter((snapshot) => snapshot.id !== state.currentSnapshot.id)];
+  if (canPersist) {
+    try {
+      await saveSnapshotAndAccount(state.currentSnapshot, state.snapshots.length);
+      state.historyPersisted = true;
+      try { state.snapshots = await getSnapshots(state.accountKey); } catch { /* Keep in-session snapshot after successful write. */ }
+    } catch { state.historyPersisted = false; }
+  }
   buildComparisonDatasets();
-
   if (state.previousSnapshot) {
-    state.availableDatasetKeys = ["lostFollowers", "newFollowers", ...state.availableDatasetKeys];
+    state.availableDatasetKeys = ["lostFollowers", "newFollowers", ...state.availableDatasetKeys.filter((key) => !["lostFollowers", "newFollowers"].includes(key))];
     state.currentDataset = "lostFollowers";
-  } else {
-    state.currentDataset = "nonFollowers";
-  }
+  } else state.currentDataset = "nonFollowers";
+  return state.historyPersisted;
 }
 
 function buildComparisonDatasets() {
@@ -1189,18 +1221,18 @@ function createUsernameMap(usernames, dates = {}) {
   const profiles = new Map();
   usernames.forEach((username) => {
     const profile = normalizeProfile(username);
-    if (profile) profiles.set(profile.key, {
-      ...profile,
-      followedYouAt: normalizeTimestamp(dates?.[profile.key])
-    });
+    if (!profile) return;
+    const timestamp = Object.prototype.hasOwnProperty.call(dates, profile.key) ? normalizeTimestamp(dates[profile.key]) : null;
+    profiles.set(profile.key, { ...profile, followedYouAt: timestamp });
   });
   return profiles;
 }
 
 function createTimestampRecord(profiles) {
-  const dates = {};
+  const dates = Object.create(null);
   profiles.forEach((profile, key) => {
-    if (profile.timestamp) dates[key] = profile.timestamp;
+    const timestamp = normalizeTimestamp(profile.timestamp);
+    if (timestamp) dates[key] = timestamp;
   });
   return dates;
 }
@@ -1223,8 +1255,10 @@ function renderDashboard(ignoredFileCount = 0) {
     summaryParts.unshift(tr("demo.summary"));
   } else if (state.viewingHistoricalSnapshot && state.currentSnapshot) {
     summaryParts.unshift(tr("results.snapshotViewing", { date: formatHistoryDateTime(state.currentSnapshot.createdAt) }));
-  } else if (state.storageAvailable) summaryParts.unshift(tr("results.snapshotSaved", { username: state.accountUsername }));
+  } else if (state.historyPersisted) summaryParts.unshift(tr("results.snapshotSaved", { username: state.accountUsername }));
   else summaryParts.unshift(tr("results.noStorage"));
+  elements.storageWarning.hidden = state.isDemo || state.viewingHistoricalSnapshot || state.historyPersisted;
+  elements.storageWarning.textContent = tr("results.noStorage");
   if (ignoredFileCount) summaryParts.push(tr("results.ignoredFiles", {
     count: formatNumber(ignoredFileCount),
     files: tr(ignoredFileCount === 1 ? "words.file" : "words.files")
@@ -1360,8 +1394,9 @@ function renderHistoryList() {
 }
 
 async function openSnapshotResults(snapshotId, options = {}) {
+  if (state.importInProgress && !options.allowDuringImport) return;
   await storageReady;
-  const isDemoSnapshot = String(snapshotId).startsWith("__demo__:");
+  const isDemoSnapshot = String(snapshotId).startsWith(DEMO_ACCOUNT_KEY + ":");
   if (!state.database && !isDemoSnapshot) {
     showHistoryMessage(tr("messages.historyUnavailable"));
     return;
@@ -1395,7 +1430,7 @@ async function openSnapshotResults(snapshotId, options = {}) {
   state.importedFiles = [];
   state.importedArchiveName = "";
   state.viewingHistoricalSnapshot = true;
-  state.isDemo = snapshot.accountKey === "__demo__";
+  state.isDemo = snapshot.isDemo === true;
   state.query = "";
   state.filter = "all";
   elements.accountInput.value = snapshot.accountUsername;
@@ -1779,6 +1814,7 @@ function waitForTransaction(transaction) {
 }
 
 async function exportHistoryBackup() {
+  if (state.importInProgress) return;
   await storageReady;
   if (!state.database) {
     showHistoryMessage(tr("messages.historyUnavailable"));
@@ -1804,107 +1840,103 @@ async function exportHistoryBackup() {
 
 async function isInstaCheckBackup(file) {
   if (!file?.name?.toLocaleLowerCase("en-US").endsWith(".json") || file.size > MAX_BACKUP_SIZE) return false;
-  try {
-    const data = JSON.parse(await file.text());
-    return data?.app === "InstaCheck" && data?.version === 1 && Array.isArray(data.snapshots);
-  } catch {
-    return false;
-  }
+  try { return isInstaCheckBackupData((await readJsonFile(file)).data); }
+  catch { return false; }
 }
 
 async function restoreHistoryBackup(file, options = {}) {
-  if (file.size > MAX_BACKUP_SIZE) {
-    showHistoryMessage(tr("messages.backupLarge"));
-    return;
-  }
-
+  if (state.importInProgress) return;
+  if (file.size > MAX_BACKUP_SIZE) { showHistoryMessage(tr("messages.backupLarge")); return; }
+  state.importInProgress = true;
+  setProcessing(true);
   try {
     await storageReady;
     if (!state.database) throw new Error(tr("messages.storageUnavailable"));
-    const data = JSON.parse(await file.text());
-    if (data.app !== "InstaCheck" || data.version !== 1 || !Array.isArray(data.snapshots)) throw new Error(tr("messages.invalidBackup"));
+    const parsed = await readJsonFile(file);
+    if (!isInstaCheckBackupData(parsed.data)) throw new Error(tr("messages.invalidBackup"));
+    await restoreHistoryBackupData(parsed.data, { ...options, allowDuringImport: true });
+  } catch (error) { showHistoryMessage(error.message || tr("messages.restoreError")); }
+  finally { state.importInProgress = false; setProcessing(false); }
+}
+async function restoreHistoryBackupData(data, options = {}) {
+  if (data?.app !== "InstaCheck" || data?.version !== 1 || !Array.isArray(data.snapshots)) {
+    showHistoryMessage(tr("messages.invalidBackup")); return false;
+  }
+  if (!state.database) { showHistoryMessage(tr("messages.storageUnavailable")); return false; }
+  try {
     const snapshots = data.snapshots.map(validateSnapshot).filter(Boolean);
     if (!snapshots.length) throw new Error(tr("messages.emptyBackup"));
-
     const accounts = new Map();
     snapshots.forEach((snapshot) => {
       const current = accounts.get(snapshot.accountKey);
-      if (!current || snapshot.createdAt > current.lastSnapshotAt) {
-        accounts.set(snapshot.accountKey, {
-          accountKey: snapshot.accountKey,
-          accountUsername: snapshot.accountUsername,
-          lastUsedAt: Date.now(),
-          lastSnapshotAt: snapshot.createdAt,
-          snapshotCount: 0
-        });
-      }
+      if (!current || snapshot.createdAt > current.lastSnapshotAt) accounts.set(snapshot.accountKey, {
+        accountKey: snapshot.accountKey, accountUsername: snapshot.accountUsername,
+        lastUsedAt: Date.now(), lastSnapshotAt: snapshot.createdAt, snapshotCount: 0
+      });
     });
     snapshots.forEach((snapshot) => { accounts.get(snapshot.accountKey).snapshotCount += 1; });
-
     const transaction = state.database.transaction(["snapshots", "accounts"], "readwrite");
     snapshots.forEach((snapshot) => transaction.objectStore("snapshots").put(snapshot));
     accounts.forEach((account) => transaction.objectStore("accounts").put(account));
     await waitForTransaction(transaction);
-
     for (const account of accounts.values()) {
       const mergedSnapshots = await getSnapshots(account.accountKey);
-      const latest = mergedSnapshots[0];
       const accountTransaction = state.database.transaction("accounts", "readwrite");
       accountTransaction.objectStore("accounts").put({
-        ...account,
-        lastSnapshotAt: latest?.createdAt || account.lastSnapshotAt,
+        ...account, lastSnapshotAt: mergedSnapshots[0]?.createdAt || account.lastSnapshotAt,
         snapshotCount: mergedSnapshots.length
       });
       await waitForTransaction(accountTransaction);
     }
-
     mergeRestoredProgress(data.progress);
     await renderSavedAccounts();
     if (options.openLatest) {
-      const newestSnapshot = [...snapshots].sort((first, second) => second.createdAt - first.createdAt)[0];
-      await openSnapshotResults(newestSnapshot.id);
+      const newestSnapshot = [...snapshots].sort((a, b) => b.createdAt - a.createdAt)[0];
+      await openSnapshotResults(newestSnapshot.id, { allowDuringImport: options.allowDuringImport });
     }
     showHistoryMessage(tr(snapshots.length === 1 ? "messages.restoredOne" : "messages.restoredMany", {
       count: formatNumber(snapshots.length)
     }), "success");
+    return true;
   } catch (error) {
     showHistoryMessage(error.message || tr("messages.restoreError"));
+    return false;
   }
 }
 
 function validateSnapshot(snapshot) {
   const account = normalizeProfile(snapshot?.accountUsername || snapshot?.accountKey);
   const createdAt = Number(snapshot?.createdAt);
-  if (!account || !Number.isFinite(createdAt) || !Array.isArray(snapshot.followers) || !Array.isArray(snapshot.following)) return null;
+  if (!account || !Number.isFinite(createdAt) || createdAt <= 0 || createdAt > MAX_SUPPORTED_TIMESTAMP
+    || !Number.isFinite(new Date(createdAt).getTime())
+    || !Array.isArray(snapshot.followers) || !Array.isArray(snapshot.following)) return null;
   const followers = snapshot.followers.map((item) => normalizeProfile(item)?.username).filter(Boolean);
   const following = snapshot.following.map((item) => normalizeProfile(item)?.username).filter(Boolean);
   const normalizedFollowers = sortStrings(followers.map((item) => item.toLocaleLowerCase("en-US")));
   const normalizedFollowing = sortStrings(following.map((item) => item.toLocaleLowerCase("en-US")));
-  const fingerprint = hashString(`${normalizedFollowers.join("|")}::${normalizedFollowing.join("|")}`);
+  const fingerprint = hashString(normalizedFollowers.join("|") + "::" + normalizedFollowing.join("|"));
   const followerDates = validateTimestampRecord(snapshot.followerDates, followers);
   const followingDates = validateTimestampRecord(snapshot.followingDates, following);
   return {
-    id: `${account.key}:${createdAt}:${fingerprint}`,
-    accountKey: account.key,
-    accountUsername: account.username,
-    createdAt,
+    id: account.key + ":" + createdAt + ":" + fingerprint,
+    accountKey: account.key, accountUsername: account.username, createdAt,
     sourceName: String(snapshot.sourceName || tr("history.restoredBackup")).slice(0, 180),
-    fingerprint,
-    followers,
-    following,
-    followerDates,
-    followingDates,
-    followersCount: followers.length,
-    followingCount: following.length
+    fingerprint, followers, following, followerDates, followingDates,
+    followersCount: followers.length, followingCount: following.length
   };
 }
 
 function validateTimestampRecord(record, usernames) {
-  if (!record || typeof record !== "object" || Array.isArray(record)) return {};
+  if (!record || typeof record !== "object" || Array.isArray(record)) return Object.create(null);
   const allowedKeys = new Set(usernames.map((username) => username.toLocaleLowerCase("en-US")));
-  return Object.fromEntries(Object.entries(record)
-    .map(([key, value]) => [String(key).toLocaleLowerCase("en-US"), normalizeTimestamp(value)])
-    .filter(([key, value]) => allowedKeys.has(key) && value));
+  const timestamps = Object.create(null);
+  Object.keys(record).forEach((rawKey) => {
+    if (!Object.prototype.hasOwnProperty.call(record, rawKey)) return;
+    const key = String(rawKey).toLocaleLowerCase("en-US");
+    const timestamp = normalizeTimestamp(record[rawKey]);
+    if (allowedKeys.has(key) && timestamp) timestamps[key] = timestamp;
+  });
+  return timestamps;
 }
 
 function showHistoryMessage(message, type = "error") {
@@ -1916,58 +1948,96 @@ function showHistoryMessage(message, type = "error") {
 }
 
 function getProgressSet(datasetKey) {
-  const accountKey = state.accountKey || "default";
-  if (!state.progress[accountKey]) state.progress[accountKey] = {};
-  if (!state.progress[accountKey][datasetKey]) state.progress[accountKey][datasetKey] = new Set();
-  return state.progress[accountKey][datasetKey];
+  if (!PROGRESS_DATASETS.has(datasetKey) || state.isDemo) return new Set();
+  const rawAccountKey = state.accountKey || "default";
+  const account = normalizeProfile(rawAccountKey);
+  if (!account || account.key !== rawAccountKey) return new Set();
+  const accountKey = account.key;
+  let accountProgress = state.progress.get(accountKey);
+  if (!accountProgress) { accountProgress = new Map(); state.progress.set(accountKey, accountProgress); }
+  let values = accountProgress.get(datasetKey);
+  if (!values) { values = new Set(); accountProgress.set(datasetKey, values); }
+  return values;
 }
 
 function loadProgress() {
+  pendingLegacyProgress = null;
+  const progress = new Map();
   try {
     const saved = JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY));
-    if (saved && typeof saved === "object") return deserializeProgress(saved);
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+      deserializeProgress(saved).forEach((datasets, accountKey) => progress.set(accountKey, datasets));
+      return progress;
+    }
     const previous = JSON.parse(localStorage.getItem(PREVIOUS_PROGRESS_STORAGE_KEY));
-    if (previous && typeof previous === "object") return { __legacy__: deserializeDatasetProgress(previous) };
+    if (previous && typeof previous === "object" && !Array.isArray(previous)) {
+      pendingLegacyProgress = deserializeDatasetProgress(previous);
+      return progress;
+    }
     const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
-    if (Array.isArray(legacy)) return { __legacy__: { nonFollowers: new Set(legacy.map((item) => String(item).toLocaleLowerCase("en-US"))) } };
-  } catch {
-    return {};
-  }
-  return {};
+    if (Array.isArray(legacy)) pendingLegacyProgress = new Map([["nonFollowers", new Set(legacy.map(normalizeProgressUsername).filter(Boolean))]]);
+  } catch { return progress; }
+  return progress;
 }
 
 function claimLegacyProgress(accountKey) {
-  if (!state.progress[accountKey] && state.progress.__legacy__) {
-    state.progress[accountKey] = state.progress.__legacy__;
-    delete state.progress.__legacy__;
-    saveProgress();
-  }
+  const account = normalizeProfile(accountKey);
+  if (!account || !pendingLegacyProgress || state.progress.has(account.key)) return;
+  state.progress.set(account.key, pendingLegacyProgress);
+  pendingLegacyProgress = null;
+  saveProgress();
 }
 
 function deserializeProgress(saved) {
-  return Object.fromEntries(Object.entries(saved).map(([accountKey, datasets]) => [accountKey, deserializeDatasetProgress(datasets)]));
+  const progress = new Map();
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return progress;
+  Object.keys(saved).forEach((rawAccountKey) => {
+    if (!Object.prototype.hasOwnProperty.call(saved, rawAccountKey)) return;
+    const account = normalizeProfile(rawAccountKey);
+    if (account) progress.set(account.key, deserializeDatasetProgress(saved[rawAccountKey]));
+  });
+  return progress;
 }
 
 function deserializeDatasetProgress(datasets) {
-  if (!datasets || typeof datasets !== "object") return {};
-  return Object.fromEntries(Object.entries(datasets).map(([key, values]) => [key, new Set(Array.isArray(values) ? values.map((item) => String(item).toLocaleLowerCase("en-US")) : [])]));
+  const progress = new Map();
+  if (!datasets || typeof datasets !== "object" || Array.isArray(datasets)) return progress;
+  Object.keys(datasets).forEach((datasetKey) => {
+    if (!Object.prototype.hasOwnProperty.call(datasets, datasetKey) || !PROGRESS_DATASETS.has(datasetKey)) return;
+    const values = Array.isArray(datasets[datasetKey]) ? datasets[datasetKey].map(normalizeProgressUsername).filter(Boolean) : [];
+    progress.set(datasetKey, new Set(values));
+  });
+  return progress;
+}
+function normalizeProgressUsername(value) {
+  if (typeof value !== "string") return null;
+  return normalizeProfile(value)?.key || null;
 }
 
 function serializeProgress() {
-  return Object.fromEntries(Object.entries(state.progress).map(([accountKey, datasets]) => [
-    accountKey,
-    Object.fromEntries(Object.entries(datasets).map(([key, values]) => [key, [...values]]))
-  ]));
+  const serialized = Object.create(null);
+  state.progress.forEach((datasets, accountKey) => {
+    const account = normalizeProfile(accountKey);
+    if (!account || account.key !== accountKey) return;
+    const serializedDatasets = Object.create(null);
+    datasets.forEach((values, datasetKey) => {
+      if (PROGRESS_DATASETS.has(datasetKey)) serializedDatasets[datasetKey] = [...values].filter((value) => normalizeProgressUsername(value) === value);
+    });
+    serialized[accountKey] = serializedDatasets;
+  });
+  return serialized;
 }
 
 function mergeRestoredProgress(restored) {
-  if (!restored || typeof restored !== "object") return;
-  const parsed = deserializeProgress(restored);
-  Object.entries(parsed).forEach(([accountKey, datasets]) => {
-    if (!state.progress[accountKey]) state.progress[accountKey] = {};
-    Object.entries(datasets).forEach(([key, values]) => {
-      if (!state.progress[accountKey][key]) state.progress[accountKey][key] = new Set();
-      values.forEach((value) => state.progress[accountKey][key].add(value));
+  if (!restored || typeof restored !== "object" || Array.isArray(restored)) return;
+  deserializeProgress(restored).forEach((datasets, accountKey) => {
+    let target = state.progress.get(accountKey);
+    if (!target) { target = new Map(); state.progress.set(accountKey, target); }
+    datasets.forEach((values, datasetKey) => {
+      if (!PROGRESS_DATASETS.has(datasetKey)) return;
+      let targetValues = target.get(datasetKey);
+      if (!targetValues) { targetValues = new Set(); target.set(datasetKey, targetValues); }
+      values.forEach((value) => targetValues.add(value));
     });
   });
   saveProgress();
@@ -2005,9 +2075,9 @@ function exportVisibleProfiles() {
   state.visibleProfiles.forEach((profile) => rows.push([
     profile.username,
     `https://www.instagram.com/${profile.key}/`,
-    profile.followedAt ? new Date(profile.followedAt).toISOString() : "",
-    profile.followedYouAt ? new Date(profile.followedYouAt).toISOString() : "",
-    profile.timestamp ? new Date(profile.timestamp).toISOString() : ""
+    formatIsoTimestamp(profile.followedAt),
+    formatIsoTimestamp(profile.followedYouAt),
+    formatIsoTimestamp(profile.timestamp)
   ]));
   const csv = `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}`;
   downloadBlob(csv, `instacheck-${DATASET_CONFIG[state.currentDataset].fileSlug}.csv`, "text/csv;charset=utf-8");
@@ -2213,9 +2283,24 @@ function flashButtonLabel(button, label) {
 
 function setProcessing(isProcessing) {
   elements.dropZone.classList.toggle("processing", isProcessing);
+  elements.dropZone.setAttribute("aria-busy", String(isProcessing));
+  document.body.classList.toggle("import-in-progress", isProcessing);
   elements.fileInput.disabled = isProcessing;
-  elements.selectButton.disabled = isProcessing;
   elements.uploadTitle.textContent = tr(isProcessing ? "upload.processing" : "upload.title");
+  const lockable = [elements.selectButton, elements.demoButton, elements.accountInput, elements.newAnalysisButton,
+    ...elements.backupButtons, ...elements.restoreButtons];
+  lockable.forEach((element) => {
+    if (!element) return;
+    if (isProcessing) {
+      if (!Object.prototype.hasOwnProperty.call(element.dataset, "wasDisabledBeforeImport")) {
+        element.dataset.wasDisabledBeforeImport = String(element.disabled);
+      }
+      element.disabled = true;
+    } else if (Object.prototype.hasOwnProperty.call(element.dataset, "wasDisabledBeforeImport")) {
+      element.disabled = element.dataset.wasDisabledBeforeImport === "true";
+      delete element.dataset.wasDisabledBeforeImport;
+    }
+  });
   elements.selectButton.textContent = tr(isProcessing ? "upload.opening" : "upload.button");
 }
 
@@ -2265,19 +2350,28 @@ function formatMutualStatus(profile) {
 }
 
 function formatProfileDate(timestamp) {
-  return new Intl.DateTimeFormat(getLocale(), { day: "2-digit", month: "short", year: "numeric" }).format(new Date(timestamp));
+  const date = safeDate(timestamp);
+  return date ? new Intl.DateTimeFormat(getLocale(), { day: "2-digit", month: "short", year: "numeric" }).format(date) : "";
 }
-
 function formatHistoryDate(timestamp) {
-  return new Intl.DateTimeFormat(getLocale(), { day: "2-digit", month: "long", year: "numeric" }).format(new Date(timestamp));
+  const date = safeDate(timestamp);
+  return date ? new Intl.DateTimeFormat(getLocale(), { day: "2-digit", month: "long", year: "numeric" }).format(date) : "";
 }
-
 function formatHistoryDateTime(timestamp) {
-  return new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp));
+  const date = safeDate(timestamp);
+  return date ? new Intl.DateTimeFormat(getLocale(), { dateStyle: "medium", timeStyle: "short" }).format(date) : "";
 }
-
 function formatFileDate(timestamp) {
-  return new Date(timestamp).toISOString().slice(0, 10);
+  const date = safeDate(timestamp);
+  return date ? date.toISOString().slice(0, 10) : "invalid-date";
+}
+function safeDate(timestamp) {
+  const normalized = normalizeTimestamp(timestamp);
+  return normalized === null ? null : new Date(normalized);
+}
+function formatIsoTimestamp(timestamp) {
+  const date = safeDate(timestamp);
+  return date ? date.toISOString() : "";
 }
 
 function joinWithAnd(items) {

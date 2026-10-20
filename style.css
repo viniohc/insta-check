@@ -2431,6 +2431,7 @@ h3,
 
 .account-setup {
   border-bottom-color: var(--border);
+  border-radius: 17px 17px 0 0;
   background: linear-gradient(120deg, rgba(243, 242, 234, 0.9), rgba(255, 255, 255, 0.7));
 }
 
@@ -3850,6 +3851,7 @@ footer span:first-child {
 
   .results-heading {
     align-items: flex-start;
+    flex-direction: column;
   }
 
   .results-heading-actions {
@@ -4608,3 +4610,18 @@ html {
     display: inline-grid;
   }
 }
+
+/* Keep the secondary tutorial action in document flow so it never covers content. */
+.tutorial-fab {
+  position: static;
+  z-index: auto;
+  display: flex;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 0 auto 24px;
+}
+.tutorial-fab[hidden] { display: none; }
+@media (max-width: 600px) {
+  .tutorial-fab { position: static; right: auto; bottom: auto; margin: 0 auto 20px; }
+}
+body.import-in-progress main { pointer-events: none; }

@@ -125,6 +125,37 @@
   Object.assign(es.messages, { jsonFiles: "{count} archivos JSON", restoredOne: "1 instantánea restaurada.", restoredMany: "{count} instantáneas restauradas." });
   Object.assign(en.messages, { jsonFiles: "{count} JSON files", restoredOne: "1 snapshot restored.", restoredMany: "{count} snapshots restored." });
 
+  Object.assign(dictionaries["pt-BR"].messages, {
+    tooManyFiles: "A seleção tem arquivos demais. Selecione até 50 arquivos JSON ou use o ZIP original.",
+    jsonTooLarge: "O arquivo JSON excede o limite de 25 MiB. Escolha uma exportação menor do Instagram.",
+    totalJsonTooLarge: "Os arquivos JSON somam mais de 80 MiB. Selecione somente seguidores, seguindo e pedidos opcionais.",
+    zipExpandedTooLarge: "O conteúdo descompactado do ZIP excede 120 MiB. Exporte somente seguidores e seguindo em JSON.",
+    tooManyEntries: "O ZIP contém mais de 10.000 entradas. Baixe novamente uma exportação menor do Instagram.",
+    tooManyArchiveFiles: "O ZIP contém mais de 2.000 arquivos. Baixe novamente uma exportação menor do Instagram.",
+    zipInvalid: "Este ZIP está corrompido ou usa um formato não compatível. Baixe novamente a exportação em formato ZIP.",
+    workerUnavailable: "Não foi possível iniciar o processamento seguro em segundo plano. Reabra a página em um navegador atualizado."
+  });
+  Object.assign(es.messages, {
+    tooManyFiles: "La selección contiene demasiados archivos. Elige hasta 50 archivos JSON o usa el ZIP original.",
+    jsonTooLarge: "El archivo JSON supera el límite de 25 MiB. Elige una exportación más pequeña de Instagram.",
+    totalJsonTooLarge: "Los archivos JSON suman más de 80 MiB. Selecciona solo seguidores, seguidos y solicitudes opcionales.",
+    zipExpandedTooLarge: "El contenido descomprimido del ZIP supera 120 MiB. Exporta solo seguidores y seguidos en JSON.",
+    tooManyEntries: "El ZIP contiene más de 10.000 entradas. Descarga una exportación más pequeña de Instagram.",
+    tooManyArchiveFiles: "El ZIP contiene más de 2.000 archivos. Descarga una exportación más pequeña de Instagram.",
+    zipInvalid: "Este ZIP está dañado o usa un formato no compatible. Descarga de nuevo la exportación en formato ZIP.",
+    workerUnavailable: "No se pudo iniciar el procesamiento seguro en segundo plano. Vuelve a abrir la página en un navegador actualizado."
+  });
+  Object.assign(en.messages, {
+    tooManyFiles: "The selection contains too many files. Choose up to 50 JSON files or use the original ZIP.",
+    jsonTooLarge: "The JSON file exceeds the 25 MiB limit. Choose a smaller Instagram export.",
+    totalJsonTooLarge: "The JSON files total more than 80 MiB. Select only followers, following, and optional request files.",
+    zipExpandedTooLarge: "The expanded ZIP contents exceed 120 MiB. Export only followers and following as JSON.",
+    tooManyEntries: "The ZIP contains more than 10,000 entries. Download a smaller Instagram export.",
+    tooManyArchiveFiles: "The ZIP contains more than 2,000 files. Download a smaller Instagram export.",
+    zipInvalid: "This ZIP is corrupted or uses an unsupported format. Download the Instagram export again as a ZIP.",
+    workerUnavailable: "Secure background processing could not start. Reopen this page in an up-to-date browser."
+  });
+
   dictionaries["pt-BR"].history.restoredBackup = "Backup restaurado";
   es.history.restoredBackup = "Copia restaurada";
   en.history.restoredBackup = "Restored backup";
