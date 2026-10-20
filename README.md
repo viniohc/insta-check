@@ -1,5 +1,7 @@
 # InstaCheck
 
+**English:** [Read this README in English](README.en.md)
+
 O InstaCheck analisa seguidores, contas seguidas, conexões mútuas e diferenças entre exportações do Instagram. Selecione o ZIP ou os arquivos JSON exportados; a leitura e a análise acontecem no navegador, sem pedir login ou senha do Instagram e sem enviar as listas para um backend.
 
 - **Aplicação:** [Abrir InstaCheck](https://theinstacheck.vercel.app/)
@@ -177,7 +179,7 @@ Os limites atuais são:
 - Cada arquivo JSON: até **25 MiB**; soma dos JSONs: até **80 MiB**.
 - ZIP: até **10.000 entradas** e **2.000 arquivos**.
 - Seleção manual: até **50 arquivos JSON**.
-- Backup do InstaCheck: até **20 MiB**.
+- Backup do InstaCheck selecionado para restauração: até **20 MiB**.
 
 O app verifica os limites antes de processar os arquivos. A inspeção e a descompactação do ZIP, assim como a leitura dos JSONs, acontecem no Web Worker local `import-worker.js`.
 
@@ -234,7 +236,8 @@ O projeto usa HTML, CSS responsivo e JavaScript sem framework; IndexedDB para o 
 │   └── fflate.LICENSE
 ├── tests/
 │   └── regressions.test.mjs
-└── README.md
+├── README.en.md              # Inglês
+└── README.md                 # Português do Brasil
 ```
 
 <a id="publicacao"></a>
@@ -251,4 +254,4 @@ O InstaCheck é um projeto independente, sem vínculo, parceria ou afiliação c
 
 O InstaCheck não executa unfollows, não cancela solicitações e não realiza ações automáticas na conta. Ele apresenta diferenças encontradas nos arquivos; todas as decisões e ações permanecem sob controle do usuário.
 
-Não há um arquivo de licença do InstaCheck neste repositório. `vendor/fflate.LICENSE` acompanha a dependência fflate e não declara uma licença para o projeto inteiro. Para permissões de reutilização ou redistribuição do InstaCheck, consulte o autor.
+Este repositório ainda não possui uma licença própria. `vendor/fflate.LICENSE` cobre somente a dependência fflate. Para pedir autorização para reutilizar ou redistribuir o InstaCheck, entre em contato comigo pelo [meu perfil no GitHub](https://github.com/viniohc).
