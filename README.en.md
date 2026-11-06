@@ -1,5 +1,7 @@
 # InstaCheck
 
+[![Tests](https://github.com/viniohc/insta-check/actions/workflows/tests.yml/badge.svg)](https://github.com/viniohc/insta-check/actions/workflows/tests.yml)
+
 **Português:** [Leia este README em português](README.md)
 
 InstaCheck analyzes Instagram followers, following lists, mutual connections, and differences between exports. Select the original ZIP or the exported JSON files; files are read and analyzed in your browser, without asking for your Instagram password or sending the lists to a backend.
